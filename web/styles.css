@@ -1,0 +1,108 @@
+:root{
+  /* Light theme palette */
+  --bg:#f6f7fb;           /* app background */
+  --panel:#ffffff;        /* panels, dialogs, lists */
+  --card:#ffffff;         /* cards */
+  --ink:#111827;          /* main text */
+  --muted:#6b7280;        /* secondary text */
+  --border:#e5e7eb;       /* borders */
+  --hover:#f3f4f6;        /* hover bg */
+  --accent:#2563eb;       /* primary */
+  --accent-ink:#ffffff;   /* primary text */
+  --danger:#ef4444;       /* danger */
+}
+/* Dark theme using prefers-color-scheme, can be overridden by [data-theme] on html */
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0b1220; --panel:#141b2b; --card:#1b2236; --ink:#e5e7eb; --muted:#94a3b8; --border:#253049; --hover:#131a2b; --accent:#60a5fa; --accent-ink:#0b1220; }
+}
+
+html[data-theme="dark"]{ --bg:#0b1220; --panel:#141b2b; --card:#1b2236; --ink:#e5e7eb; --muted:#94a3b8; --border:#253049; --hover:#131a2b; --accent:#60a5fa; --accent-ink:#0b1220; }
+html[data-theme="light"]{ --bg:#f6f7fb; --panel:#ffffff; --card:#ffffff; --ink:#111827; --muted:#6b7280; --border:#e5e7eb; --hover:#f3f4f6; --accent:#2563eb; --accent-ink:#ffffff; }
+*{box-sizing:border-box}
+body{margin:0; font:14px/1.5 system-ui,Segoe UI,Roboto,Ubuntu,Arial; background:var(--bg); color:var(--ink)}
+#app{display:grid; grid-template-columns:280px 1fr; height:100vh}
+.sidebar{padding:16px; background:var(--panel); border-right:1px solid var(--border); overflow:auto}
+.sidebar h1{margin:0 0 12px 0; font-size:20px; font-weight:700; display:flex; align-items:center; gap:8px}
+.boards-header{display:flex; align-items:center; gap:8px; margin-bottom:8px}
+.boards-header .btn{margin-left:auto}
+.btn{background:var(--panel); border:1px solid var(--border); color:var(--ink); padding:8px 12px; border-radius:10px; cursor:pointer; transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .02s}
+.btn:hover{background:var(--hover)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(0.98)}
+.btn.danger{border-color:#fecaca; color:#991b1b; background:#fff5f5}
+.btn.danger:hover{background:#ffeeee}
+.btn.icon{padding:6px 8px; line-height:1; width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center}
+.btn.icon svg{width:18px; height:18px}
+ul{list-style:none; padding:0; margin:0}
+#boards li{padding:8px 10px; border-radius:10px; cursor:pointer; display:flex; align-items:center; gap:8px}
+#boards li .btn-color{margin-left:auto; opacity:.75}
+#boards li .btn-color svg{width:14px; height:14px}
+#boards li .ico svg{width:16px; height:16px; color:var(--muted)}
+#boards li:hover{background:var(--hover)}
+#boards li.active{background:rgba(99,102,241,.15); outline:1px solid rgba(99,102,241,.25)}
+.main{display:flex; flex-direction:column; overflow:hidden}
+.board-header{display:flex; align-items:center; gap:8px; padding:12px; border-bottom:1px solid var(--border); background:var(--panel)}
+.board-header h2{margin:0; font-size:18px; font-weight:600}
+.lists{display:flex; gap:12px; padding:12px; overflow:auto; height:100%}
+.list{min-width:280px; width:280px; background:var(--panel); border:1px solid var(--border); border-radius:14px; display:flex; flex-direction:column; max-height:100%; box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.list header{display:flex; align-items:center; gap:8px; padding:10px 10px 8px}
+.list .drag-handle{display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; color:var(--muted); cursor:grab}
+.list .drag-handle svg{width:16px; height:16px}
+.list.dragging{opacity:.85}
+.lists .list{transition:transform .15s ease}
+.list header h3{margin:0; font-size:14px}
+.cards{padding:10px; display:flex; flex-direction:column; gap:8px; overflow:auto}
+
+/* Sidebar boards: handle-only dragging */
+.boards .board-item{ display:flex; align-items:center; gap:.35rem; }
+.boards .board-item .drag-handle svg{ width:14px; height:14px; opacity:.8; }
+.boards .board-item.dragging{ opacity:.7; }
+.card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px; cursor:grab; box-shadow:0 1px 2px rgba(16,24,40,.04); display:flex; align-items:flex-start; gap:8px}
+.card .btn-color{opacity:.75}
+.btn-color:hover{opacity:1}
+.card .ico svg{width:14px; height:14px; color:var(--muted); margin-top:2px}
+.card:hover{background:color-mix(in srgb, var(--card) 90%, #fff 10%)}
+.list[style*="--clr:"] header{ border-left:4px solid var(--clr); padding-left:6px }
+.card[style*="--clr:"]{ border-color:color-mix(in srgb, var(--clr) 60%, var(--border)); box-shadow:inset 0 0 0 2px color-mix(in srgb, var(--clr) 20%, transparent), 0 1px 2px rgba(16,24,40,.04) }
+#boards li[style*="--clr:"] .ico svg{ color:var(--clr) }
+.add-card{padding:10px}
+.add-card button{width:100%}
+dialog{border:none; background:var(--panel); color:var(--ink); padding:18px; border-radius:14px; width:480px; box-shadow:0 10px 30px rgba(2,6,23,.18), 0 4px 10px rgba(2,6,23,.08); opacity:0; transform:translateY(6px); transition:opacity .15s ease, transform .15s ease}
+dialog[open]{opacity:1; transform:translateY(0)}
+::backdrop{background:rgba(2,6,23,.38)}
+dialog h3{margin:0 0 8px 0}
+dialog form label{display:flex; flex-direction:column; gap:6px; margin:10px 0}
+/* Apply same label layout for non-form dialog bodies (e.g., card editor) */
+dialog .dialog-body label{display:flex; flex-direction:column; gap:6px; margin:10px 0}
+dialog input, dialog textarea{background:var(--panel); border:1px solid var(--border); color:var(--ink); border-radius:10px; padding:10px}
+dialog input, dialog textarea{width:100%}
+dialog input::placeholder, dialog textarea::placeholder{color:var(--muted)}
+dialog input:focus, dialog textarea:focus{outline:none; border-color:color-mix(in srgb, var(--accent) 45%, var(--border)); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent)}
+dialog menu{display:flex; justify-content:flex-end; gap:8px; margin-top:12px}
+.primary{background:var(--accent); border:none; color:var(--accent-ink)}
+.spacer{flex:1}
+
+/* confirm dialog specific (inherits dialog base styles) */
+#dlgConfirm p{margin:8px 0 0 0}
+
+/* Card view dialog tweaks */
+#dlgCardView{width:480px}
+#dlgCardView .dialog-body{min-width:auto; max-width:none}
+/* Force consistent stacked labels in both dialogs */
+#dlgCard .dialog-body > label,
+#dlgCardView .dialog-body > label{display:flex; flex-direction:column}
+#dlgCardView section{margin-top:12px}
+#dlgCardView h4{margin:0 0 6px 0}
+#cvComments{display:flex; flex-direction:column; gap:6px; padding:0}
+#cvComments li{list-style:none; background:color-mix(in srgb, var(--panel) 90%, #fff 10%); border:1px solid var(--border); border-radius:10px; padding:8px}
+.add-comment{display:flex; gap:8px; margin-top:8px}
+.add-comment input{flex:1}
+
+/* Editable list title focus */
+.list header h3[contenteditable="true"]:focus{outline:none; box-shadow:inset 0 -2px 0 var(--accent);}
+
+/* Color picker dialog */
+#dlgColor .color-grid{display:grid; grid-template-columns:repeat(9, 1fr); gap:8px; margin:8px 0 12px}
+#dlgColor .swatch{width:100%; aspect-ratio:1/1; border-radius:10px; border:1px solid var(--border); background:var(--c, transparent); position:relative}
+#dlgColor .swatch[data-color=""]{background:repeating-conic-gradient(from 45deg, transparent 0 10px, rgba(127,127,127,.2) 10px 20px)}

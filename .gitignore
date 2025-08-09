@@ -1,0 +1,55 @@
+# OS
+.DS_Store
+Thumbs.db
+$RECYCLE.BIN/
+
+# Editors/IDEs
+.vscode/
+.idea/
+*.code-workspace
+
+# Env & local config
+.env
+.env.*
+!.env.example
+
+# Logs & temp
+*.log
+logs/
+*.tmp
+*.swp
+*.swo
+.cache/
+
+# Go
+bin/
+build/
+dist/
+coverage/
+coverage.*
+*.out
+*.test
+*.exe
+*.dll
+*.so
+*.dylib
+# Go workspaces (if used locally)
+go.work
+go.work.sum
+# Vendor (not used normally; uncomment if you vendor deps)
+# vendor/
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Web (future-proofing; project is vanilla JS but ignore typical build dirs)
+node_modules/
+web/node_modules/
+web/dist/
+web/build/
+web/.cache/
+
+# Misc
+*.sql
+*.dump
