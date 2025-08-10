@@ -869,30 +869,33 @@ function getDragAfterList(container, x){
 
 function enableBoardsDnD(){
   const container = els.boards;
-  [...container.children].forEach(li => { li.draggable = false; li.classList.add('board-item'); });
-  // drag only via handle
-  container.querySelectorAll('.board-item .drag-handle').forEach(h => {
-    h.style.cursor = 'grab';
-    h.addEventListener('click', e => e.stopPropagation());
-    h.addEventListener('mousedown', e => { const li = e.target.closest('li'); if(li){ li.draggable = true; li.dataset.dragAllowed = '1'; } });
-  });
-  container.addEventListener('dragstart', e => {
-    const li = e.target.closest('li'); if(!li) return;
-    if(li.dataset.dragAllowed !== '1'){ e.preventDefault(); li.draggable = false; return; }
-    delete li.dataset.dragAllowed;
-    li.classList.add('dragging');
-    e.dataTransfer.setData('text/plain', li.dataset.id);
-  });
-  container.addEventListener('dragend', async e => {
-    const li = e.target.closest('li'); if(!li) return; li.classList.remove('dragging');
-    const siblings = [...container.querySelectorAll('li')];
-    const newIndex = siblings.findIndex(x => x.dataset.id == li.dataset.id);
-    const id = parseInt(li.dataset.id, 10);
-    try { await api.moveBoard(id, newIndex); } catch(err){ console.warn('Не удалось переместить доску:', err.message); }
-    li.draggable = false;
+  [...container.children].forEach(li => {
+    li.draggable = false; li.classList.add('board-item');
+    const handle = li.querySelector('.drag-handle');
+    if(handle){
+      handle.style.cursor = 'grab';
+      handle.addEventListener('click', e => e.stopPropagation());
+      handle.addEventListener('mousedown', () => { li.draggable = true; li.dataset.dragAllowed = '1'; });
+    }
+    li.addEventListener('dragstart', e => {
+      if(li.dataset.dragAllowed !== '1'){ e.preventDefault(); li.draggable = false; return; }
+      delete li.dataset.dragAllowed;
+      li.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', li.dataset.id);
+  if(e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+    });
+    li.addEventListener('dragend', async () => {
+      li.classList.remove('dragging');
+      const siblings = [...container.querySelectorAll('li')];
+      const newIndex = siblings.findIndex(x => x.dataset.id == li.dataset.id);
+      const id = parseInt(li.dataset.id, 10);
+      try { await api.moveBoard(id, newIndex); } catch(err){ console.warn('Не удалось переместить доску:', err.message); }
+      li.draggable = false;
+    });
   });
   container.addEventListener('dragover', e => {
     e.preventDefault();
+  if(e.dataTransfer) e.dataTransfer.dropEffect = 'move';
     const dragging = container.querySelector('li.dragging'); if(!dragging) return;
     const after = getDragAfterBoard(container, e.clientY);
     if(after == null) container.appendChild(dragging); else container.insertBefore(dragging, after);
