@@ -1,0 +1,44 @@
+version: '3'
+
+tasks:
+  up:
+    desc: Запуск через Docker Compose (сборка и старт)
+    cmds:
+      - docker compose up -d --build
+
+  down:
+    desc: Остановка и удаление контейнеров
+    cmds:
+      - docker compose down
+
+  logs:
+    desc: Просмотр логов всех сервисов
+    cmds:
+      - docker compose logs -f
+
+  restart:
+    desc: Перезапуск приложения
+    cmds:
+      - docker compose restart app
+
+  dev:
+    desc: Локальный запуск сервера (нужен Postgres на localhost:5432)
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/trellolite?sslmode=disable
+    cmds:
+      - go run ./server
+
+  fmt:
+    desc: Форматирование кода
+    cmds:
+      - go fmt ./...
+
+  vet:
+    desc: Базовая статическая проверка
+    cmds:
+      - go vet ./...
+
+  tidy:
+    desc: Синхронизация зависимостей
+    cmds:
+      - go mod tidy
