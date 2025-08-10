@@ -14,10 +14,12 @@
 /* Dark theme using prefers-color-scheme, can be overridden by [data-theme] on html */
 @media (prefers-color-scheme: dark){
   :root{ --bg:#0b1220; --panel:#141b2b; --card:#1b2236; --ink:#e5e7eb; --muted:#94a3b8; --border:#253049; --hover:#131a2b; --accent:#60a5fa; --accent-ink:#0b1220; }
+  /* When auto mode and system is dark, hint UA controls to render dark popups */
+  html:not([data-theme]){ color-scheme: dark; }
 }
 
-html[data-theme="dark"]{ --bg:#0b1220; --panel:#141b2b; --card:#1b2236; --ink:#e5e7eb; --muted:#94a3b8; --border:#253049; --hover:#131a2b; --accent:#60a5fa; --accent-ink:#0b1220; }
-html[data-theme="light"]{ --bg:#f6f7fb; --panel:#ffffff; --card:#ffffff; --ink:#111827; --muted:#6b7280; --border:#e5e7eb; --hover:#f3f4f6; --accent:#2563eb; --accent-ink:#ffffff; }
+html[data-theme="dark"]{ --bg:#0b1220; --panel:#141b2b; --card:#1b2236; --ink:#e5e7eb; --muted:#94a3b8; --border:#253049; --hover:#131a2b; --accent:#60a5fa; --accent-ink:#0b1220; color-scheme: dark; }
+html[data-theme="light"]{ --bg:#f6f7fb; --panel:#ffffff; --card:#ffffff; --ink:#111827; --muted:#6b7280; --border:#e5e7eb; --hover:#f3f4f6; --accent:#2563eb; --accent-ink:#ffffff; color-scheme: light; }
 *{box-sizing:border-box}
 body{margin:0; font:14px/1.5 system-ui,Segoe UI,Roboto,Ubuntu,Arial; background:var(--bg); color:var(--ink)}
 #app{display:grid; grid-template-columns:280px 1fr; height:100vh}
@@ -79,6 +81,19 @@ dialog input, dialog textarea{background:var(--panel); border:1px solid var(--bo
 dialog input, dialog textarea{width:100%}
 dialog input::placeholder, dialog textarea::placeholder{color:var(--muted)}
 dialog input:focus, dialog textarea:focus{outline:none; border-color:color-mix(in srgb, var(--accent) 45%, var(--border)); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent)}
+
+/* Normalize calendar/time inputs across themes */
+input[type="date"], input[type="time"], input[type="datetime-local"]{
+  background:var(--panel);
+  color:var(--ink);
+  border:1px solid var(--border);
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator{ opacity:.85 }
+html[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator,
+html[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator{ filter: invert(1) hue-rotate(180deg); opacity:.9 }
 dialog menu{display:flex; justify-content:flex-end; gap:8px; margin-top:12px}
 .primary{background:var(--accent); border:none; color:var(--accent-ink)}
 .spacer{flex:1}
@@ -106,6 +121,18 @@ dialog menu{display:flex; justify-content:flex-end; gap:8px; margin-top:12px}
 #dlgColor .color-grid{display:grid; grid-template-columns:repeat(9, 1fr); gap:8px; margin:8px 0 12px}
 #dlgColor .swatch{width:100%; aspect-ratio:1/1; border-radius:10px; border:1px solid var(--border); background:var(--c, transparent); position:relative}
 #dlgColor .swatch[data-color=""]{background:repeating-conic-gradient(from 45deg, transparent 0 10px, rgba(127,127,127,.2) 10px 20px)}
+
+/* Date-time picker dialog */
+#dlgDateTime .dt-header{display:flex; align-items:center; gap:8px; margin:6px 0 8px}
+#dlgDateTime .dt-header .dt-month{flex:1; text-align:center; font-weight:600}
+#dlgDateTime .dt-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:10px}
+#dlgDateTime .dt-grid .dow{font-size:12px; color:var(--muted); text-align:center}
+#dlgDateTime .dt-grid button{padding:8px 0; border-radius:8px; background:var(--panel); border:1px solid var(--border); color:var(--ink); cursor:pointer}
+#dlgDateTime .dt-grid button:hover{background:var(--hover)}
+#dlgDateTime .dt-grid button.selected{background:color-mix(in srgb, var(--accent) 16%, var(--panel)); border-color:color-mix(in srgb, var(--accent) 40%, var(--border))}
+#dlgDateTime .dt-grid button.today{outline:2px solid color-mix(in srgb, var(--accent) 60%, transparent)}
+#dlgDateTime .dt-time{display:flex; gap:8px}
+#dlgDateTime .dt-time label{flex:1}
 
 /* Context menu */
 .ctx-menu{position:fixed; z-index:10000; min-width:220px; background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:10px; box-shadow:0 10px 30px rgba(2,6,23,.18), 0 4px 10px rgba(2,6,23,.08)}

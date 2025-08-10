@@ -65,7 +65,7 @@
           <textarea name="description" rows="6" placeholder="Опишите задачу..."></textarea>
         </label>
         <label>Срок
-          <input name="due_at" type="datetime-local">
+          <input id="dueAtCreate" name="due_at" type="text" placeholder="дд.мм.гггг  чч:мм" readonly>
         </label>
         <menu>
           <button type="button" value="cancel" class="btn" formnovalidate>Отмена</button>
@@ -85,7 +85,7 @@
         <textarea id="cvDescription" rows="6" placeholder="Опишите задачу..."></textarea>
       </label>
       <label>Срок
-        <input id="cvDueAt" type="datetime-local">
+        <input id="cvDueAt" type="text" placeholder="дд.мм.гггг  чч:мм" readonly>
       </label>
       <section>
         <h4>Комментарии</h4>
@@ -98,6 +98,31 @@
       <menu>
         <button id="btnCloseCardView" class="btn">Закрыть</button>
         <button id="btnSaveCardView" class="btn primary">Сохранить</button>
+      </menu>
+    </div>
+  </dialog>
+
+  <dialog id="dlgDateTime">
+    <div class="dialog-body">
+      <h3>Дата и время</h3>
+      <div class="dt-header">
+        <button class="btn icon" id="dtPrev" title="Предыдущий месяц" aria-label="Предыдущий месяц">‹</button>
+        <div class="dt-month" id="dtMonth"></div>
+        <button class="btn icon" id="dtNext" title="Следующий месяц" aria-label="Следующий месяц">›</button>
+      </div>
+      <div class="dt-grid" id="dtGrid"></div>
+      <div class="dt-time">
+        <label>Часы
+          <select id="dtHour"></select>
+        </label>
+        <label>Минуты
+          <select id="dtMinute"></select>
+        </label>
+      </div>
+      <menu>
+        <button type="button" id="btnDtClear" class="btn">Сбросить</button>
+        <button type="button" id="btnDtCancel" class="btn">Отмена</button>
+        <button type="button" id="btnDtOk" class="btn primary">Применить</button>
       </menu>
     </div>
   </dialog>

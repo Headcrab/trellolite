@@ -31,7 +31,11 @@ async function fetchJSON(url, opts={}){
     try { const j = await res.json(); if(j && j.error) msg = j.error } catch{}
     throw new Error(msg);
   }
-  return res.json();
+  if(res.status === 204) return null;
+  // some backends may send empty body with 200; guard json parse
+  const text = await res.text();
+  if(!text) return null;
+  try { return JSON.parse(text); } catch { return null; }
 }
 
 const state = { boards: [], currentBoardId: null, lists: [], cards: new Map(), currentCard: null, dragListCrossDrop: false };
@@ -47,7 +51,8 @@ const els = { boards: el('boards'), boardTitle: el('boardTitle'), lists: el('lis
   dlgConfirm: el('dlgConfirm'), formConfirm: el('formConfirm'), confirmMessage: el('confirmMessage'),
   dlgColor: el('dlgColor'), formColor: el('formColor'), colorCustom: el('colorCustom'),
   dlgInput: el('dlgInput'), formInput: el('formInput'), inputTitle: el('inputTitle'), inputLabel: el('inputLabel'), inputValue: el('inputValue'),
-  dlgSelect: el('dlgSelect'), formSelect: el('formSelect'), selectTitle: el('selectTitle'), selectLabel: el('selectLabel'), selectControl: el('selectControl') };
+  dlgSelect: el('dlgSelect'), formSelect: el('formSelect'), selectTitle: el('selectTitle'), selectLabel: el('selectLabel'), selectControl: el('selectControl'),
+  dlgDateTime: el('dlgDateTime'), dtMonth: el('dtMonth'), dtGrid: el('dtGrid'), dtPrev: el('dtPrev'), dtNext: el('dtNext'), dtHour: el('dtHour'), dtMinute: el('dtMinute'), btnDtOk: el('btnDtOk'), btnDtCancel: el('btnDtCancel'), btnDtClear: el('btnDtClear'), dueAtCreate: el('dueAtCreate') };
 
 function applyThemeIcon(mode){
   const btn = document.getElementById('btnTheme'); if(!btn) return;
@@ -146,14 +151,12 @@ function bindUI(){
     const fd = new FormData(els.formCard);
     const title = fd.get('title').trim();
     const description = (fd.get('description')||'').trim();
-    const due_at = fd.get('due_at');
+    const due_at = (els.dueAtCreate && els.dueAtCreate.dataset.iso) ? els.dueAtCreate.dataset.iso : '';
     const listId = parseInt(els.formCard.dataset.listId, 10);
     if(!title || !listId) return;
     try {
       const c = await api.createCard(listId, title, description);
-      if(due_at){
-        try { await api.updateCardFields(c.id, { due_at: new Date(due_at).toISOString() }); c.due_at = new Date(due_at).toISOString(); } catch{}
-      }
+      if(due_at){ try { await api.updateCardFields(c.id, { due_at }); c.due_at = due_at; } catch{} }
       if(!state.cards.has(listId)) state.cards.set(listId, []);
       const arr = state.cards.get(listId);
       if(!arr.some(x => x.id === c.id)){
@@ -190,7 +193,8 @@ function bindUI(){
     const payload = {};
     const title = els.cvTitle.value.trim(); if(title && title !== c.title) payload.title = title;
     const description = els.cvDescription.value.trim(); if(description !== c.description) payload.description = description;
-    const dueVal = els.cvDueAt.value; if(dueVal){ const iso = new Date(dueVal).toISOString(); payload.due_at = iso; }
+  const dueVal = els.cvDueAt.dataset.iso || '';
+  if(dueVal) payload.due_at = dueVal; else if(c.due_at) payload.due_at = '';
     if(Object.keys(payload).length===0){ els.dlgCardView.close(); return; }
     try { await api.updateCardFields(c.id, payload); els.dlgCardView.close(); renderBoard(state.currentBoardId); }
     catch(err){ alert('Не удалось сохранить карточку: ' + err.message); }
@@ -212,6 +216,21 @@ function bindUI(){
     const clearBtn = els.formColor && els.formColor.querySelector('button[value="clear"]');
     if(clearBtn){ clearBtn.addEventListener('click', () => { els.dlgColor.dataset.selected = ''; els.dlgColor.close('ok'); }); }
   }
+
+  // Custom date-time picker bindings
+  const bindDtInput = (inputEl) => {
+    if(!inputEl) return;
+    inputEl.addEventListener('click', async () => {
+      const isoInit = inputEl.dataset.iso || '';
+      const iso = await openDateTimePicker(isoInit);
+      if(iso === undefined) return; // canceled
+      if(iso === ''){ inputEl.value=''; delete inputEl.dataset.iso; return; }
+      const {text} = toLocalTextAndISO(iso);
+      inputEl.value = text; inputEl.dataset.iso = iso;
+    });
+  };
+  bindDtInput(els.dueAtCreate);
+  bindDtInput(els.cvDueAt);
 }
 
 // ---- Context menu ----
@@ -533,9 +552,10 @@ function pickColor(current){
 }
 
 async function refreshBoards(){
-  state.boards = await api.getBoards();
+  const data = await api.getBoards().catch(err => { console.warn('getBoards failed:', err.message); return null; });
+  state.boards = Array.isArray(data) ? data : (data && Array.isArray(data.boards) ? data.boards : []);
   els.boards.innerHTML = '';
-  for(const b of state.boards){
+  for(const b of (state.boards || [])){
     const li = document.createElement('li');
   li.dataset.id = b.id;
   li.innerHTML = `<span class="drag-handle" title="Перетащить доску"><svg aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="ico"><svg aria-hidden="true"><use href="#i-board"></use></svg></span><span class="t">${escapeHTML(b.title)}</span><button class="btn icon btn-color" title="Цвет доски" aria-label="Цвет"><svg aria-hidden="true"><use href="#i-palette"></use></svg></button>`;
@@ -692,7 +712,9 @@ function buildListColumn(l){
   });
 
   col.querySelector('.btn-add-card').addEventListener('click', () => {
-    els.formCard.reset(); els.formCard.dataset.listId = l.id; els.dlgCard.returnValue=''; els.dlgCard.showModal();
+  els.formCard.reset();
+  if(els.dueAtCreate){ els.dueAtCreate.value=''; delete els.dueAtCreate.dataset.iso; }
+  els.formCard.dataset.listId = l.id; els.dlgCard.returnValue=''; els.dlgCard.showModal();
   });
 
   // Apply list color and color picker handler
@@ -745,7 +767,8 @@ async function openCard(c){
   state.currentCard = c;
   els.cvTitle.value = c.title || '';
   els.cvDescription.value = c.description || '';
-  els.cvDueAt.value = c.due_at ? toLocalDatetimeInput(c.due_at) : '';
+  if(c.due_at){ const {text, iso} = toLocalTextAndISO(c.due_at); els.cvDueAt.value = text; els.cvDueAt.dataset.iso = iso; }
+  else { els.cvDueAt.value=''; delete els.cvDueAt.dataset.iso; }
   // Открываем диалог сразу, чтобы сбой загрузки комментариев не блокировал редактирование
   els.cvComments.innerHTML = '';
   els.dlgCardView.showModal();
@@ -774,6 +797,65 @@ function toLocalDatetimeInput(iso){
   const yyyy = d.getFullYear(); const MM = pad(d.getMonth()+1); const dd = pad(d.getDate());
   const hh = pad(d.getHours()); const mm = pad(d.getMinutes());
   return `${yyyy}-${MM}-${dd}T${hh}:${mm}`;
+}
+
+function toLocalTextAndISO(iso){
+  const d = new Date(iso);
+  const pad = (n) => n.toString().padStart(2,'0');
+  const text = `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()}  ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return { text, iso: d.toISOString() };
+}
+
+async function openDateTimePicker(initialISO){
+  return new Promise((resolve) => {
+    const now = initialISO ? new Date(initialISO) : new Date();
+    let view = new Date(now.getFullYear(), now.getMonth(), 1);
+    let selected = initialISO ? new Date(initialISO) : null;
+    // fill hours/minutes
+    els.dtHour.innerHTML = ''; els.dtMinute.innerHTML='';
+    for(let h=0; h<24; h++){ const o=document.createElement('option'); o.value=String(h); o.textContent=h.toString().padStart(2,'0'); els.dtHour.appendChild(o); }
+    for(let m=0; m<60; m+=1){ const o=document.createElement('option'); o.value=String(m); o.textContent=m.toString().padStart(2,'0'); els.dtMinute.appendChild(o); }
+    if(selected){ els.dtHour.value=String(selected.getHours()); els.dtMinute.value=String(selected.getMinutes()); }
+    else { els.dtHour.value=String(now.getHours()); els.dtMinute.value=String(Math.floor(now.getMinutes()/5)*5); }
+
+    const renderMonth = () => {
+      const monthNames = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+      els.dtMonth.textContent = `${monthNames[view.getMonth()]} ${view.getFullYear()}`;
+      const start = new Date(view.getFullYear(), view.getMonth(), 1);
+      const end = new Date(view.getFullYear(), view.getMonth()+1, 0);
+      const startDay = (start.getDay()+6)%7; // Mon=0
+      els.dtGrid.innerHTML = '';
+      const dows = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+      for(const n of dows){ const s=document.createElement('div'); s.className='dow'; s.textContent=n; els.dtGrid.appendChild(s); }
+      for(let i=0;i<startDay;i++){ const sp=document.createElement('div'); els.dtGrid.appendChild(sp); }
+      const today = new Date(); today.setHours(0,0,0,0);
+      for(let day=1; day<=end.getDate(); day++){
+        const btn = document.createElement('button'); btn.type='button'; btn.textContent=String(day);
+        const cur = new Date(view.getFullYear(), view.getMonth(), day);
+        if(selected){ const s=new Date(selected); s.setHours(0,0,0,0); if(s.getTime()===cur.getTime()) btn.classList.add('selected'); }
+        const cur0 = new Date(cur); cur0.setHours(0,0,0,0);
+        if(cur0.getTime()===today.getTime()) btn.classList.add('today');
+        btn.addEventListener('click', () => {
+          selected = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), parseInt(els.dtHour.value,10)||0, parseInt(els.dtMinute.value,10)||0);
+          // Update selection highlight
+          [...els.dtGrid.querySelectorAll('button')].forEach(b=>b.classList.remove('selected'));
+          btn.classList.add('selected');
+        });
+        els.dtGrid.appendChild(btn);
+      }
+    };
+    renderMonth();
+    const onPrev = () => { view = new Date(view.getFullYear(), view.getMonth()-1, 1); renderMonth(); };
+    const onNext = () => { view = new Date(view.getFullYear(), view.getMonth()+1, 1); renderMonth(); };
+    els.dtPrev.onclick = onPrev; els.dtNext.onclick = onNext;
+    els.btnDtOk.onclick = () => {
+      if(!selected){ const base = initialISO ? new Date(initialISO) : new Date(); selected = new Date(view.getFullYear(), view.getMonth(), 1, parseInt(els.dtHour.value,10)||0, parseInt(els.dtMinute.value,10)||0); }
+      els.dlgDateTime.close('ok'); resolve(selected.toISOString());
+    };
+    els.btnDtCancel.onclick = () => { els.dlgDateTime.close('cancel'); resolve(undefined); };
+    els.btnDtClear.onclick = () => { els.dlgDateTime.close('ok'); resolve(''); };
+    els.dlgDateTime.returnValue=''; els.dlgDateTime.showModal();
+  });
 }
 
 function enableCardsDnD(container){
