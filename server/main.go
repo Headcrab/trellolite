@@ -50,23 +50,42 @@ func main() {
 
 	mux := http.NewServeMux()
 	fs := http.FileServer(http.Dir("./web"))
-	// Gate the root index behind auth: redirect anonymous users to login
-	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		// serve login page directly to avoid redirect loops for login.html
-		if r.URL.Path != "/" {
-			fs.ServeHTTP(w, r)
-			return
-		}
-		// Try read session cookie directly (avoid circular import)
-		// We reuse getenv defaults for cookie name here
-		cookieName := getenv("SESSION_COOKIE_NAME", "trellolite_sess")
-		if c, err := r.Cookie(cookieName); err == nil && c.Value != "" {
-			// User likely authenticated; serve app index
-			fs.ServeHTTP(w, r)
-			return
-		}
+
+	// Helper to serve auth pages without caching
+	noStore := func(w http.ResponseWriter) {
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+	}
+
+	// Explicit handlers for auth pages to avoid any accidental rewrites and disable caching
+	mux.HandleFunc("GET /web/login.html", func(w http.ResponseWriter, r *http.Request) {
+		noStore(w)
 		http.ServeFile(w, r, "./web/login.html")
 	})
+	mux.HandleFunc("GET /web/register.html", func(w http.ResponseWriter, r *http.Request) {
+		noStore(w)
+		http.ServeFile(w, r, "./web/register.html")
+	})
+
+	// Gate the root index behind auth: exact path only
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			// Not root: let other handlers (e.g., /web/) process
+			http.NotFound(w, r)
+			return
+		}
+		cookieName := getenv("SESSION_COOKIE_NAME", "trellolite_sess")
+		if c, err := r.Cookie(cookieName); err == nil && c.Value != "" {
+			// Authenticated: serve app shell directly
+			http.ServeFile(w, r, "./web/index.html")
+			return
+		}
+		noStore(w)
+		http.ServeFile(w, r, "./web/login.html")
+	})
+
+	// Static assets under /web/
 	mux.Handle("GET /web/", http.StripPrefix("/web/", fs))
 
 	api := newAPI(store, log)

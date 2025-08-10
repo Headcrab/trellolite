@@ -3,6 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Регистрация — Trellolite</title>
   <link rel="stylesheet" href="/web/styles.css" />
   <link rel="stylesheet" href="/web/auth.css" />
@@ -56,7 +59,10 @@
     async function ensureNotLoggedIn(){
       try {
         const r = await fetch('/api/auth/me', { credentials:'include' });
-        if (r.ok) { location.replace('/'); }
+        if (r.ok) {
+          const data = await r.json().catch(()=>null);
+          if (data && data.user) { location.replace('/'); }
+        }
       } catch {}
     }
 
@@ -104,7 +110,15 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      ensureNotLoggedIn();
+      // Clear navigation flag since we've arrived at register page
+      try { 
+        localStorage.removeItem('navigatingToRegister'); 
+        sessionStorage.removeItem('navigatingToRegister');
+        console.log('Cleared navigatingToRegister flags on register page');
+      } catch(e) { 
+        console.warn('Failed to clear navigation flags:', e); 
+      }
+      // Не выполняем авто-редирект: оставляем форму, пока пользователь сам не решит
       qs('#form').addEventListener('submit', onSubmit);
       qs('#togglePass').addEventListener('click', togglePassword);
     });

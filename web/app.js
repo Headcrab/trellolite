@@ -204,10 +204,15 @@ async function init(){
   const btnGroupsPanel = document.getElementById('btnGroupsPanel');
   if(btnGroupsPanel){ btnGroupsPanel.addEventListener('click', openGroupsPanel); }
 
-  // Try to fetch current user; if not authorized, leave user null
+  // Try to fetch current user; if not authorized, redirect to login (no anonymous access)
   try {
-    const me = await api.me(); state.user = me && me.user ? me.user : null; updateUserBar();
-  } catch { state.user = null; updateUserBar(); }
+    const me = await api.me();
+    state.user = me && me.user ? me.user : null;
+    if (!state.user) { location.href = '/web/login.html'; return; }
+    updateUserBar();
+  } catch {
+    state.user = null; updateUserBar(); location.href = '/web/login.html'; return;
+  }
   await refreshBoards(); bindUI(); setupContextMenu();
   if(state.boards.length) openBoard(state.boards[0].id);
 }

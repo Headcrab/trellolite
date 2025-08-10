@@ -3,6 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Вход — Trellolite</title>
   <link rel="stylesheet" href="/web/styles.css" />
   <link rel="stylesheet" href="/web/auth.css" />
@@ -75,12 +78,22 @@
 
     async function ensureNotLoggedIn(){
       try {
+        // Skip check if we're navigating to register or already there
+        if (location.pathname.includes('register.html') || 
+            localStorage.getItem('navigatingToRegister') ||
+            sessionStorage.getItem('navigatingToRegister')) {
+          console.log('Skipping auth check - navigating to/at register');
+          return;
+        }
+        
         const r = await fetch('/api/auth/me', { credentials:'include' });
         if (r.ok) {
           const data = await r.json().catch(()=>null);
           if (data && data.user) { location.replace('/'); }
         }
-      } catch {}
+      } catch(e) {
+        console.warn('ensureNotLoggedIn failed:', e);
+      }
     }
 
     function startAuthWatcher(){
@@ -183,6 +196,20 @@
       qs('#btnForgot').addEventListener('click', sendReset);
       qs('#formReset').addEventListener('submit', onResetSubmit);
       qs('#btnBackToLogin').addEventListener('click', ()=>{ location.hash=''; switchToResetMode(false); });
+      
+      // Prevent auto-redirects when navigating to register
+      const registerLink = qs('a[href="/web/register.html"]');
+      if (registerLink) {
+        registerLink.addEventListener('click', (e) => {
+          try { 
+            localStorage.setItem('navigatingToRegister', 'true');
+            sessionStorage.setItem('navigatingToRegister', 'true');
+            console.log('Set navigatingToRegister flag'); 
+          } catch(e) { 
+            console.warn('Storage not available:', e); 
+          }
+        });
+      }
       // Discover providers
   fetch('/api/auth/providers').then(r=>r.json()).then(data=>{
         if(data && Array.isArray(data.providers)){
@@ -200,8 +227,31 @@
       // If magic reset token in URL, switch UI
       if (parseHash()) switchToResetMode(true);
       // If we return from OAuth flow or just in case, start watcher and also react on focus
-      try { if (localStorage.getItem('oauthFlow')) { startAuthWatcher(); localStorage.removeItem('oauthFlow'); } } catch {}
-      window.addEventListener('focus', ensureNotLoggedIn);
+      // BUT: only if we're still on login page, not transitioning to register
+      try { 
+        const hasOAuth = localStorage.getItem('oauthFlow');
+        const isNavigating = localStorage.getItem('navigatingToRegister');
+        console.log('Login init - oauthFlow:', hasOAuth, 'navigating:', isNavigating);
+        if (hasOAuth && !isNavigating) { 
+          startAuthWatcher(); 
+          localStorage.removeItem('oauthFlow'); 
+        } 
+      } catch(e) { 
+        console.warn('localStorage check failed:', e); 
+      }
+      // Only watch focus if not navigating to register
+      window.addEventListener('focus', () => {
+        try {
+          const isNavigating = localStorage.getItem('navigatingToRegister');
+          console.log('Focus event - navigating:', isNavigating);
+          if (!isNavigating) {
+            ensureNotLoggedIn();
+          }
+        } catch(e) {
+          console.warn('Focus check failed:', e);
+          // Fallback: don't check auth on focus if localStorage fails
+        }
+      });
     });
   </script>
 </body>
