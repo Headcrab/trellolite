@@ -9,8 +9,12 @@
 .input{ width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--panel); color:inherit }
 .input:focus{ outline:none; border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent) }
 .toggle-pass{ position:absolute; right:8px; top:50%; transform:translateY(-50%); border:none; background:transparent; color:var(--muted); cursor:pointer }
-.actions{ display:flex; gap:8px; margin-top:16px }
-.actions .btn{ flex:1 }
+.actions{ display:flex; gap:8px; margin-top:16px; align-items:center }
+.actions-primary .btn{ flex:1 }
+.actions-secondary{ justify-content:space-between }
+.actions-secondary .btn{ flex:1; background:transparent; border-color:transparent; color:var(--accent); padding-left:0; padding-right:0; text-align:left }
+.actions-secondary .btn:hover{ text-decoration:underline; background:transparent }
+.actions .btn svg{ flex:0 0 auto }
 .btn{ background:var(--panel); border:1px solid var(--border); color:var(--ink); padding:10px 12px; border-radius:10px; cursor:pointer }
 .btn.primary{ background: var(--accent); border-color: var(--accent); color: var(--accent-ink) }
 .btn:disabled{ opacity:.7; cursor:not-allowed }

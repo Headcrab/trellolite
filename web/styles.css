@@ -22,13 +22,39 @@ html[data-theme="dark"]{ --bg:#0b1220; --panel:#141b2b; --card:#1b2236; --ink:#e
 html[data-theme="light"]{ --bg:#f6f7fb; --panel:#ffffff; --card:#ffffff; --ink:#111827; --muted:#6b7280; --border:#e5e7eb; --hover:#f3f4f6; --accent:#2563eb; --accent-ink:#ffffff; color-scheme: light; }
 *{box-sizing:border-box}
 body{margin:0; font:14px/1.5 system-ui,Segoe UI,Roboto,Ubuntu,Arial; background:var(--bg); color:var(--ink)}
+.muted{ color: var(--muted); }
 #app{display:grid; grid-template-columns:280px 1fr; height:100vh}
-.sidebar{padding:16px; background:var(--panel); border-right:1px solid var(--border); overflow:auto}
+#app.sidebar-collapsed{ grid-template-columns:min-content 1fr }
+.sidebar{padding:16px; background:var(--panel); border-right:1px solid var(--border); overflow:auto; display:flex; flex-direction:column}
+.sidebar .spacer{ flex:1 }
+.sidebar button#btnSidebarToggle{ opacity:.9 }
+.sidebar-collapsed .sidebar{ padding:8px; overflow:hidden }
+.sidebar-collapsed .sidebar h1{ justify-content:center; gap:0 }
+/* скрываем всё кроме кнопки */
+.sidebar-collapsed .sidebar h1 .logo-text,
+.sidebar-collapsed .sidebar h1 .spacer,
+.sidebar-collapsed .sidebar #btnTheme,
+.sidebar-collapsed .userbar,
+.sidebar-collapsed .boards-header,
+.sidebar-collapsed #boards,
+.sidebar-collapsed .sidebar-footer{ display:none }
+.sidebar-collapsed #boards li .t{ display:none }
+.sidebar-collapsed #boards li{ justify-content:center }
+.sidebar-collapsed .boards-header #btnNewBoard{ width:32px }
 .sidebar h1{margin:0 0 12px 0; font-size:20px; font-weight:700; display:flex; align-items:center; gap:8px}
 .boards-header{display:flex; align-items:center; gap:8px; margin-bottom:8px}
-.boards-header .btn{margin-left:auto}
+.boards-header .scope-toggle{ display:flex; gap:6px; align-items:center }
+.boards-header .scope-toggle .btn.toggle{ display:inline-flex; gap:6px; align-items:center; padding:6px; }
+.boards-header .scope-toggle .btn.toggle svg{ width:16px; height:16px }
+.btn.toggle[aria-pressed="true"]{ background:color-mix(in srgb, var(--accent) 15%, var(--panel)); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.btn.toggle .lbl{ display:none }
 .userbar{display:flex; align-items:center; gap:10px; padding:10px; border:1px solid var(--border); border-radius:12px; background:var(--panel); margin-bottom:10px}
-.userbar .avatar{width:32px; height:32px; border-radius:50%; background:color-mix(in srgb, var(--accent) 20%, var(--panel)); display:flex; align-items:center; justify-content:center; font-weight:700}
+.userbar .avatar{
+  width:32px; height:32px; border-radius:50%;
+  background:color-mix(in srgb, var(--accent) 20%, var(--panel));
+  display:flex; align-items:center; justify-content:center; font-weight:700;
+  aspect-ratio:1/1; overflow:hidden; flex:0 0 32px;
+}
 .userbar .userinfo{display:flex; flex-direction:column; min-width:0}
 .userbar .uname{font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .userbar .uemail{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
@@ -41,15 +67,20 @@ body{margin:0; font:14px/1.5 system-ui,Segoe UI,Roboto,Ubuntu,Arial; background:
 .btn.danger:hover{background:#ffeeee}
 .btn.icon{padding:6px 8px; line-height:1; width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center}
 .btn.icon svg{width:18px; height:18px}
+.btn svg{ display:inline-block; width:16px; height:16px }
 ul{list-style:none; padding:0; margin:0}
+#boards{flex:1 1 auto}
 #boards li{padding:8px 10px; border-radius:10px; cursor:pointer; display:flex; align-items:center; gap:8px}
 #boards li .btn-color{margin-left:auto; opacity:.75}
+#boards li .btn-color{ width:28px; height:28px }
 #boards li .btn-color svg{width:14px; height:14px}
 #boards li .ico svg{width:16px; height:16px; color:var(--muted)}
 #boards li:hover{background:var(--hover)}
 #boards li.active{background:rgba(99,102,241,.15); outline:1px solid rgba(99,102,241,.25)}
 .main{display:flex; flex-direction:column; overflow:hidden}
 .board-header{display:flex; align-items:center; gap:8px; padding:12px; border-bottom:1px solid var(--border); background:var(--panel)}
+.board-header .btn.icon{ width:32px; height:32px }
+.board-header .btn.icon svg{ width:18px; height:18px }
 .board-header h2{margin:0; font-size:18px; font-weight:600}
 .lists{display:flex; gap:12px; padding:12px; overflow:auto; height:100%}
 .list{min-width:280px; width:280px; background:var(--panel); border:1px solid var(--border); border-radius:14px; display:flex; flex-direction:column; max-height:100%; box-shadow:0 1px 2px rgba(16,24,40,.04)}
@@ -63,6 +94,10 @@ ul{list-style:none; padding:0; margin:0}
 
 /* Sidebar boards: handle-only dragging */
 .boards .board-item{ display:flex; align-items:center; gap:.35rem; }
+/* Header controls sizing to prevent overflow */
+.boards-header .btn{ white-space:nowrap; }
+.boards-header #btnNewBoard{ width:32px; height:32px; padding:0; text-align:center }
+.boards-header #btnGroupsPanel{ max-width:120px; overflow:hidden; text-overflow:ellipsis }
 .boards .board-item .drag-handle svg{ width:14px; height:14px; opacity:.8; }
 .boards .board-item.dragging{ opacity:.7; }
 .card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px; cursor:grab; box-shadow:0 1px 2px rgba(16,24,40,.04); display:flex; align-items:flex-start; gap:8px}
@@ -84,6 +119,8 @@ dialog form label{display:flex; flex-direction:column; gap:6px; margin:10px 0}
 dialog .dialog-body label{display:flex; flex-direction:column; gap:6px; margin:10px 0}
 dialog input, dialog textarea{background:var(--panel); border:1px solid var(--border); color:var(--ink); border-radius:10px; padding:10px}
 dialog input, dialog textarea{width:100%}
+/* Align selects in dialogs to inputs */
+dialog select{background:var(--panel); border:1px solid var(--border); color:var(--ink); border-radius:10px; padding:10px; width:100%}
 dialog input::placeholder, dialog textarea::placeholder{color:var(--muted)}
 dialog input:focus, dialog textarea:focus{outline:none; border-color:color-mix(in srgb, var(--accent) 45%, var(--border)); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent)}
 
@@ -102,6 +139,9 @@ html[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-in
 dialog menu{display:flex; justify-content:flex-end; gap:8px; margin-top:12px}
 .primary{background:var(--accent); border:none; color:var(--accent-ink)}
 .spacer{flex:1}
+
+/* Sidebar footer */
+.sidebar-footer{ padding-top:10px; border-top:1px solid var(--border); margin-top:10px }
 
 /* confirm dialog specific (inherits dialog base styles) */
 #dlgConfirm p{margin:8px 0 0 0}
@@ -138,6 +178,8 @@ dialog menu{display:flex; justify-content:flex-end; gap:8px; margin-top:12px}
 #dlgDateTime .dt-grid button.today{outline:2px solid color-mix(in srgb, var(--accent) 60%, transparent)}
 #dlgDateTime .dt-time{display:flex; gap:8px}
 #dlgDateTime .dt-time label{flex:1}
+/* Time selectors visual parity with other controls */
+#dlgDateTime .dt-time select{background:var(--panel); border:1px solid var(--border); color:var(--ink); border-radius:10px; padding:8px 10px; width:100%}
 
 /* Context menu */
 .ctx-menu{position:fixed; z-index:10000; min-width:220px; background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:10px; box-shadow:0 10px 30px rgba(2,6,23,.18), 0 4px 10px rgba(2,6,23,.08)}
@@ -148,3 +190,43 @@ dialog menu{display:flex; justify-content:flex-end; gap:8px; margin-top:12px}
 .ctx-menu li.disabled{opacity:.6; pointer-events:none}
 .ctx-menu li.danger{color:#b91c1c}
 .ctx-menu li.sep{height:1px; margin:6px 8px; background:var(--border); padding:0}
+
+/* Groups dialog */
+#dlgGroups .groups-list{display:flex; flex-direction:column; gap:4px; max-height:320px; overflow:auto; padding:2px 0}
+#dlgGroups .group-row{display:flex; align-items:center; gap:6px; flex-direction:row; cursor:pointer; user-select:none; padding:2px 0; font-size:13px}
+#dlgGroups .group-row span{flex:1}
+#dlgGroups input[type="checkbox"]{
+  appearance:auto; -webkit-appearance:checkbox;
+  width:14px; height:14px; flex:0 0 14px; margin:0 6px 0 0;
+  border:none; background:transparent; padding:0; box-shadow:none;
+  accent-color: var(--accent);
+}
+#dlgMembers .group-row{display:flex; align-items:center; gap:8px}
+#dlgMembers .spacer{flex:1}
+/* Inline icon alignment for group rows */
+.group-row svg{ width:14px; height:14px; opacity:.85 }
+
+/* Groups panel (sidebar dialog) rows on one line */
+#dlgGroupsPanel .groups-list{ display:flex; flex-direction:column; gap:6px; max-height:360px; overflow:auto; padding:2px 0 }
+#dlgGroupsPanel .group-row{ display:flex; align-items:center; gap:8px; flex-wrap:nowrap }
+#dlgGroupsPanel .group-row .spacer{ flex:1 }
+#dlgGroupsPanel .group-row span{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+#dlgGroupsPanel .group-row .btn{ flex:0 0 auto; white-space:nowrap }
+
+/* Board/list/card icon buttons hints already come from title attr */
+
+/* Admin actions layout (both in main panel and dialogs) */
+.admin-actions{display:flex; align-items:center; gap:8px; margin:8px 0 12px}
+.admin-actions input,.admin-actions select{background:var(--panel); border:1px solid var(--border); color:var(--ink); border-radius:10px; padding:8px 10px}
+.admin-actions input{flex:1; min-width:220px}
+
+/* Generic inline row helper */
+.row{display:flex; align-items:center; gap:8px}
+
+/* Admin panel block (collapsible) */
+#adminPanel{ margin:12px; }
+#adminPanel h3{ display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none }
+#adminPanel h3::before{ content:'▾'; display:inline-block; transition:transform .15s ease }
+#adminPanel.collapsed h3::before{ transform:rotate(-90deg) }
+#adminPanel.collapsed .admin-actions,
+#adminPanel.collapsed #adminGroups{ display:none }

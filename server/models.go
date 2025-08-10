@@ -9,6 +9,10 @@ type Board struct {
 	// Pos is used for ordering boards
 	// omitted from JSON to keep payloads small; ordering happens server-side
 	CreatedAt time.Time `json:"created_at"`
+	ProjectID *int64    `json:"project_id,omitempty"`
+	CreatedBy *int64    `json:"created_by,omitempty"`
+	// ViaGroup indicates the board is accessible to the current user via their group membership
+	ViaGroup bool `json:"via_group,omitempty"`
 }
 
 type List struct {
@@ -62,4 +66,6 @@ type Group struct {
 	ID        int64     `json:"id"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
+	// Role is the current user's role in this group when applicable (1=member, 2=admin)
+	Role int `json:"role,omitempty"`
 }

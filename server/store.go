@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -23,8 +24,49 @@ func (s *Store) Migrate(ctx context.Context) error {
 	return err
 }
 
-func (s *Store) ListBoards(ctx context.Context) ([]Board, error) {
-	rows, err := s.db.QueryContext(ctx, `select id, title, coalesce(color,'') as color, created_at from boards order by pos, id`)
+func (s *Store) ListBoards(ctx context.Context, userID int64, scope string) ([]Board, error) {
+	var rows *sql.Rows
+	var err error
+	switch strings.ToLower(scope) {
+	case "groups", "group":
+		rows, err = s.db.QueryContext(ctx, `
+			select b.id, b.title, coalesce(b.color,''), b.created_at, b.project_id, b.created_by,
+				   true as via_group
+			from boards b
+			where exists (
+				select 1 from board_groups bg
+				join user_groups ug on ug.group_id = bg.group_id
+				where bg.board_id = b.id and ug.user_id = $1
+			)
+			order by b.pos, b.id`, userID)
+	case "all":
+		rows, err = s.db.QueryContext(ctx, `
+			select b.id, b.title, coalesce(b.color,''), b.created_at, b.project_id, b.created_by,
+				   exists (
+					   select 1 from board_groups bg
+					   join user_groups ug on ug.group_id = bg.group_id
+					   where bg.board_id = b.id and ug.user_id = $1
+				   ) as via_group
+			from boards b
+			where b.created_by = $1
+			   or exists (
+				   select 1 from board_groups bg
+				   join user_groups ug on ug.group_id = bg.group_id
+				   where bg.board_id = b.id and ug.user_id = $1
+			   )
+			   or exists (
+				   select 1 from projects p left join project_members pm on pm.project_id = p.id and pm.user_id = $1
+				   where p.id = b.project_id and (p.owner_user_id = $1 or pm.user_id is not null)
+			   )
+			order by b.pos, b.id`, userID)
+	default: // "mine"
+		rows, err = s.db.QueryContext(ctx, `
+			select id, title, coalesce(color,''), created_at, project_id, created_by,
+				   false as via_group
+			from boards
+			where created_by = $1
+			order by pos, id`, userID)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +74,7 @@ func (s *Store) ListBoards(ctx context.Context) ([]Board, error) {
 	var out []Board
 	for rows.Next() {
 		var b Board
-		if err := rows.Scan(&b.ID, &b.Title, &b.Color, &b.CreatedAt); err != nil {
+		if err := rows.Scan(&b.ID, &b.Title, &b.Color, &b.CreatedAt, &b.ProjectID, &b.CreatedBy, &b.ViaGroup); err != nil {
 			return nil, err
 		}
 		out = append(out, b)
@@ -40,19 +82,107 @@ func (s *Store) ListBoards(ctx context.Context) ([]Board, error) {
 	return out, rows.Err()
 }
 
-func (s *Store) CreateBoard(ctx context.Context, title string) (Board, error) {
+func (s *Store) CreateBoard(ctx context.Context, userID int64, title string) (Board, error) {
 	var next int64 = 1000
 	_ = s.db.QueryRowContext(ctx, `select coalesce(max(pos),0)+1000 from boards`).Scan(&next)
 	var b Board
-	err := s.db.QueryRowContext(ctx, `insert into boards(title, pos) values($1,$2) returning id, title, coalesce(color,''), created_at`, title, next).
-		Scan(&b.ID, &b.Title, &b.Color, &b.CreatedAt)
+	err := s.db.QueryRowContext(ctx, `insert into boards(title, pos, created_by) values($1,$2,$3) returning id, title, coalesce(color,''), created_at, created_by`, title, next, userID).
+		Scan(&b.ID, &b.Title, &b.Color, &b.CreatedAt, &b.CreatedBy)
 	return b, err
+}
+
+// Projects
+func (s *Store) ListProjects(ctx context.Context, userID int64) ([]Project, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		select p.id, p.name, p.owner_user_id, p.created_at
+		from projects p
+		left join project_members pm on pm.project_id = p.id and pm.user_id = $1
+		where p.owner_user_id = $1 or pm.user_id is not null
+		order by p.created_at desc, p.id desc`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Project
+	for rows.Next() {
+		var p Project
+		if err := rows.Scan(&p.ID, &p.Name, &p.OwnerID, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) CreateProject(ctx context.Context, ownerID int64, name string) (Project, error) {
+	var p Project
+	err := s.db.QueryRowContext(ctx, `insert into projects(name, owner_user_id) values($1,$2) returning id, name, owner_user_id, created_at`, name, ownerID).
+		Scan(&p.ID, &p.Name, &p.OwnerID, &p.CreatedAt)
+	return p, err
+}
+
+func (s *Store) AddProjectMember(ctx context.Context, projectID, userID int64, role int) error {
+	if role <= 0 {
+		role = 2
+	}
+	_, err := s.db.ExecContext(ctx, `insert into project_members(project_id, user_id, role) values($1,$2,$3)
+		on conflict (project_id, user_id) do update set role=excluded.role`, projectID, userID, role)
+	return err
+}
+
+func (s *Store) RemoveProjectMember(ctx context.Context, projectID, userID int64) error {
+	_, err := s.db.ExecContext(ctx, `delete from project_members where project_id=$1 and user_id=$2`, projectID, userID)
+	return err
+}
+
+func (s *Store) ProjectMembers(ctx context.Context, projectID int64) ([]User, error) {
+	rows, err := s.db.QueryContext(ctx, `select u.id, u.email, u.name, coalesce(u.avatar_url,''), u.is_active, u.is_admin, u.created_at
+		from project_members pm join users u on u.id = pm.user_id where pm.project_id=$1 order by u.email`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) SetBoardProject(ctx context.Context, boardID, projectID int64) error {
+	_, err := s.db.ExecContext(ctx, `update boards set project_id=$1 where id=$2`, projectID, boardID)
+	return err
+}
+
+func (s *Store) IsProjectOwner(ctx context.Context, projectID, userID int64) (bool, error) {
+	var x int
+	err := s.db.QueryRowContext(ctx, `select 1 from projects where id=$1 and owner_user_id=$2`, projectID, userID).Scan(&x)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (s *Store) CanAccessProject(ctx context.Context, projectID, userID int64) (bool, error) {
+	var x int
+	if err := s.db.QueryRowContext(ctx, `select 1 from projects where id=$1 and owner_user_id=$2`, projectID, userID).Scan(&x); err == nil {
+		return true, nil
+	}
+	err := s.db.QueryRowContext(ctx, `select 1 from project_members where project_id=$1 and user_id=$2`, projectID, userID).Scan(&x)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 func (s *Store) GetBoard(ctx context.Context, id int64) (Board, error) {
 	var b Board
-	err := s.db.QueryRowContext(ctx, `select id, title, coalesce(color,''), created_at from boards where id=$1`, id).
-		Scan(&b.ID, &b.Title, &b.Color, &b.CreatedAt)
+	err := s.db.QueryRowContext(ctx, `select id, title, coalesce(color,''), created_at, project_id, created_by from boards where id=$1`, id).
+		Scan(&b.ID, &b.Title, &b.Color, &b.CreatedAt, &b.ProjectID, &b.CreatedBy)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Board{}, ErrNotFound
 	}
@@ -187,6 +317,253 @@ func (s *Store) CreateCard(ctx context.Context, listID int64, title, description
 	return c, err
 }
 
+// --- Groups & board visibility ---
+func (s *Store) MyGroups(ctx context.Context, userID int64) ([]Group, error) {
+	rows, err := s.db.QueryContext(ctx, `select g.id, g.name, g.created_at, ug.role
+		from groups g join user_groups ug on ug.group_id = g.id
+		where ug.user_id=$1 order by g.name`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Group
+	for rows.Next() {
+		var g Group
+		if err := rows.Scan(&g.ID, &g.Name, &g.CreatedAt, &g.Role); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+// Self-managed group helpers
+// IsGroupAdmin returns true if user has role>=2 in the group
+func (s *Store) IsGroupAdmin(ctx context.Context, groupID, userID int64) (bool, error) {
+	var x int
+	err := s.db.QueryRowContext(ctx, `select 1 from user_groups where group_id=$1 and user_id=$2 and role>=2`, groupID, userID).Scan(&x)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (s *Store) GroupUsersForSelf(ctx context.Context, groupID int64) ([]User, error) {
+	return s.GroupUsers(ctx, groupID)
+}
+
+func (s *Store) AddUserToGroupSelf(ctx context.Context, groupID, userID int64) error {
+	return s.AddUserToGroup(ctx, groupID, userID)
+}
+
+func (s *Store) RemoveUserFromGroupSelf(ctx context.Context, groupID, userID int64) error {
+	return s.RemoveUserFromGroup(ctx, groupID, userID)
+}
+
+func (s *Store) DeleteGroupIfAdmin(ctx context.Context, groupID, userID int64) error {
+	ok, err := s.IsGroupAdmin(ctx, groupID, userID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errors.New("forbidden")
+	}
+	return s.DeleteGroup(ctx, groupID)
+}
+
+func (s *Store) BoardGroups(ctx context.Context, boardID int64) ([]Group, error) {
+	rows, err := s.db.QueryContext(ctx, `select g.id, g.name, g.created_at
+		from board_groups bg join groups g on g.id = bg.group_id
+		where bg.board_id=$1 order by g.name`, boardID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Group
+	for rows.Next() {
+		var g Group
+		if err := rows.Scan(&g.ID, &g.Name, &g.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) AddBoardToGroup(ctx context.Context, boardID, groupID int64) error {
+	_, err := s.db.ExecContext(ctx, `insert into board_groups(board_id, group_id) values($1,$2) on conflict do nothing`, boardID, groupID)
+	return err
+}
+
+func (s *Store) RemoveBoardFromGroup(ctx context.Context, boardID, groupID int64) error {
+	_, err := s.db.ExecContext(ctx, `delete from board_groups where board_id=$1 and group_id=$2`, boardID, groupID)
+	return err
+}
+
+func (s *Store) IsBoardOwner(ctx context.Context, boardID, userID int64) (bool, error) {
+	var x int
+	err := s.db.QueryRowContext(ctx, `select 1 from boards where id=$1 and created_by=$2`, boardID, userID).Scan(&x)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (s *Store) IsUserInGroup(ctx context.Context, userID, groupID int64) (bool, error) {
+	var x int
+	err := s.db.QueryRowContext(ctx, `select 1 from user_groups where user_id=$1 and group_id=$2`, userID, groupID).Scan(&x)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// --- Groups CRUD & membership (admin) ---
+func (s *Store) ListGroups(ctx context.Context) ([]Group, error) {
+	rows, err := s.db.QueryContext(ctx, `select id, name, created_at from groups order by name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Group
+	for rows.Next() {
+		var g Group
+		if err := rows.Scan(&g.ID, &g.Name, &g.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) CreateGroup(ctx context.Context, name string) (Group, error) {
+	var g Group
+	err := s.db.QueryRowContext(ctx, `insert into groups(name) values($1) returning id, name, created_at`, name).Scan(&g.ID, &g.Name, &g.CreatedAt)
+	return g, err
+}
+
+// CreateGroupOwned creates a group and adds the owner as admin (role=2)
+func (s *Store) CreateGroupOwned(ctx context.Context, ownerID int64, name string) (Group, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Group{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var g Group
+	if err := tx.QueryRowContext(ctx, `insert into groups(name) values($1) returning id, name, created_at`, name).Scan(&g.ID, &g.Name, &g.CreatedAt); err != nil {
+		return Group{}, err
+	}
+	// role: 2 = admin, 1 = member
+	if _, err := tx.ExecContext(ctx, `insert into user_groups(user_id, group_id, role) values($1,$2,2) on conflict (user_id, group_id) do update set role=excluded.role`, ownerID, g.ID); err != nil {
+		return Group{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Group{}, err
+	}
+	return g, nil
+}
+
+func (s *Store) DeleteGroup(ctx context.Context, id int64) error {
+	res, err := s.db.ExecContext(ctx, `delete from groups where id=$1`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) GroupUsers(ctx context.Context, groupID int64) ([]User, error) {
+	rows, err := s.db.QueryContext(ctx, `select u.id, u.email, u.name, coalesce(u.avatar_url,''), u.is_active, u.is_admin, u.created_at
+			from user_groups ug join users u on u.id = ug.user_id where ug.group_id=$1 order by u.email`, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) AddUserToGroup(ctx context.Context, groupID, userID int64) error {
+	// default role=1 (member) when not specified
+	_, err := s.db.ExecContext(ctx, `insert into user_groups(user_id, group_id, role) values($1,$2,1)
+		on conflict (user_id, group_id) do update set role=coalesce(user_groups.role,1)`, userID, groupID)
+	return err
+}
+
+func (s *Store) RemoveUserFromGroup(ctx context.Context, groupID, userID int64) error {
+	_, err := s.db.ExecContext(ctx, `delete from user_groups where user_id=$1 and group_id=$2`, userID, groupID)
+	return err
+}
+
+// ListUsers returns users filtered by query (ILIKE on email or name). Limit is capped to [1,200].
+func (s *Store) ListUsers(ctx context.Context, query string, limit int) ([]User, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	var rows *sql.Rows
+	var err error
+	q := strings.TrimSpace(query)
+	if q == "" {
+		rows, err = s.db.QueryContext(ctx, `select id, email, name, coalesce(avatar_url,''), is_active, is_admin, created_at from users order by id desc limit $1`, limit)
+	} else {
+		like := "%" + q + "%"
+		rows, err = s.db.QueryContext(ctx, `select id, email, name, coalesce(avatar_url,''), is_active, is_admin, created_at from users where email ilike $1 or name ilike $1 order by email limit $2`, like, limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// CanAccessBoard: user is owner OR belongs to a group that has access to the board
+func (s *Store) CanAccessBoard(ctx context.Context, userID, boardID int64) (bool, error) {
+	var x int
+	// owner
+	if err := s.db.QueryRowContext(ctx, `select 1 from boards where id=$1 and created_by=$2`, boardID, userID).Scan(&x); err == nil {
+		return true, nil
+	}
+	// via groups
+	err := s.db.QueryRowContext(ctx, `select 1 from board_groups bg join user_groups ug on ug.group_id=bg.group_id where bg.board_id=$1 and ug.user_id=$2`, boardID, userID).Scan(&x)
+	if err == nil {
+		return true, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return false, err
+	}
+	// via project membership
+	err = s.db.QueryRowContext(ctx, `
+		select 1 from boards b
+		left join projects p on p.id = b.project_id
+		left join project_members pm on pm.project_id = b.project_id and pm.user_id = $2
+		where b.id=$1 and (p.owner_user_id = $2 or pm.user_id is not null)
+	`, boardID, userID).Scan(&x)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // Helpers for API layer to resolve board/list relationships for events
 func (s *Store) BoardIDByList(ctx context.Context, listID int64) (int64, error) {
 	var boardID int64
@@ -303,6 +680,23 @@ func (s *Store) Authenticate(ctx context.Context, email, password string) (User,
 		return User{}, errors.New("user_inactive")
 	}
 	return u, nil
+}
+
+// UpdateUserPasswordByEmail sets a new bcrypt-hashed password for a user identified by email.
+// If the user doesn't exist, it's a no-op to avoid leaking existence.
+func (s *Store) UpdateUserPasswordByEmail(ctx context.Context, email, newPassword string) error {
+	if strings.TrimSpace(email) == "" || strings.TrimSpace(newPassword) == "" {
+		return nil
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `update users set password_hash=$1 where lower(email)=lower($2)`, string(hash), email)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // get user by email (without password hash)
@@ -866,8 +1260,11 @@ create table if not exists groups(
 create table if not exists user_groups(
 		user_id bigint not null references users(id) on delete cascade,
 		group_id bigint not null references groups(id) on delete cascade,
+		role smallint not null default 1,
 		primary key(user_id, group_id)
 );
+-- ensure role column exists for older installs
+alter table user_groups add column if not exists role smallint not null default 1;
 
 -- Projects and membership
 create table if not exists projects(
@@ -881,6 +1278,13 @@ create table if not exists project_members(
 		user_id bigint not null references users(id) on delete cascade,
 		role smallint not null default 2,
 		primary key(project_id, user_id)
+);
+
+-- Boards to groups mapping (visibility of boards for groups)
+create table if not exists board_groups(
+	board_id bigint not null references boards(id) on delete cascade,
+	group_id bigint not null references groups(id) on delete cascade,
+	primary key(board_id, group_id)
 );
 
 -- Link boards.project_id to projects.id, created_by to users.id if tables exist

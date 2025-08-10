@@ -10,7 +10,7 @@
 - [x] Добавить миграции: users, oauth_accounts, sessions, groups, user_groups, projects, project_members
 - [x] Добавить изменения в boards/cards/comments (nullable FK на 1‑й фазе)
 - [x] Сохранить совместимость — не подключать новые поля в выборки на этом этапе
-- [ ] Обновить README: раздел «Аутентификация (в разработке)»
+- [x] Обновить README: раздел «Аутентификация» и настройка OAuth
 
 ## Фаза B — базовая аутентификация (email+пароль)
 - [x] Эндпоинты: POST /api/auth/register, /api/auth/login, /api/auth/logout, GET /api/auth/me
@@ -21,14 +21,14 @@
 - [x] Бэкенд: маршруты /api/auth/providers, /api/auth/oauth/github/start, /api/auth/oauth/github/callback
 - [x] Store: EnsureOAuthUser (создание/связка пользователя), oauth_accounts
 - [x] UI: кнопка «Войти через GitHub» на /web/login.html (показывается при доступности провайдера)
-- [ ] Настроить env: OAUTH_GITHUB_CLIENT_ID / OAUTH_GITHUB_CLIENT_SECRET / OAUTH_GITHUB_REDIRECT_URL
-- [ ] Протестировать полный флоу с реальным приложением GitHub
+- [x] Настроить env: OAUTH_GITHUB_CLIENT_ID / OAUTH_GITHUB_CLIENT_SECRET / OAUTH_GITHUB_REDIRECT_URL
+- [x] Протестировать полный флоу с реальным приложением GitHub
 
 ## Фаза D — проекты и роли
-- [ ] Ввести projects + members + роли (RBAC)
-- [ ] Привязать boards к project_id
+- [x] Ввести projects + members (базово) + роли (поле role, без детальной матрицы)
+- [x] Привязать boards к project_id (на этапе создания + в выборках)
 - [ ] Мигрировать существующие доски в «Default Project»
-- [ ] Ограничить доступ к бордам/спискам/карточкам по членству и ролям
+- [x] Ограничить доступ к бордам/спискам/карточкам по членству в проектах (базово)
 
 ## Фаза E — назначение исполнителя
 - [ ] Поле assignee_id у карточки; PATCH обновление
@@ -36,18 +36,18 @@
 - [ ] SSE обновления при изменении исполнителя
 
 ## Фаза F — группы пользователей
-- [ ] CRUD групп, назначение пользователей в группы
+- [x] CRUD групп, назначение пользователей в группы (бэкенд + базовый UI)
 - [ ] (Опционально) Наследование ролей через группы для проектов
 
 ## Фаза G — админка
 - [ ] /admin: пользователи, группы, проекты — список/создание/редактирование/удаление
 - [ ] Управление ролями членов проекта
-- [ ] Доступ только для is_admin=true
+- [x] Доступ только для is_admin=true (эндпоинты защищены)
 
 ## Фаза H — безопасность и UX‑полировка
-- [ ] Rate limiting на /api/auth/*
-- [ ] Сброс пароля (в dev — magic‑link в логи)
-- [ ] UX: аватар/имя пользователя в хедере, кнопка «Выход»
+- [x] Rate limiting на /api/auth/*
+- [x] Сброс пароля (в dev — magic‑link в логи)
+- [x] UX: аватар/имя пользователя в хедере, кнопка «Выход»
 - [ ] CSRF (при необходимости для форм; JSON с SameSite=Lax допускает отложить)
 
 ## Фаза I — многоисполнителей (опционально)
@@ -58,7 +58,7 @@
 
 ## Переменные окружения (новые)
 - [ ] AUTH_SESSION_SECRET — использовать для доп. подписи/генерации токенов (сейчас используется случайный токен, хранится в БД)
-- [ ] OAUTH_GITHUB_CLIENT_ID / OAUTH_GITHUB_CLIENT_SECRET / OAUTH_GITHUB_REDIRECT_URL
+- [x] OAUTH_GITHUB_CLIENT_ID / OAUTH_GITHUB_CLIENT_SECRET / OAUTH_GITHUB_REDIRECT_URL
 - [ ] (Опц.) OAUTH_GOOGLE_*
 
 ## Тестирование
@@ -71,3 +71,9 @@
 - [ ] D: доски изолированы по проектам и ролям
 - [ ] E: исполнитель карточки отображается и меняется, события по SSE
 - [ ] G: админ управляет пользователями/проектами/группами
+
+
+# Additional rules
+
+- Собирать проект с помощью "task up" (т.е. в docker, не "cd 'd:\work\go\trellolite'; go build ./...")
+- Разработка идет под Windows и PowerShell

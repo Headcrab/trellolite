@@ -1,8 +1,10 @@
 const api = {
   async me(){ return fetchJSON('/api/auth/me'); },
   async logout(){ return fetchJSON('/api/auth/logout', {method:'POST'}) },
-  async getBoards(){ return fetchJSON('/api/boards') },
+  async getBoards(scope){ return fetchJSON('/api/boards' + (scope? ('?scope='+encodeURIComponent(scope)) : '')) },
   async createBoard(title){ return fetchJSON('/api/boards', {method:'POST', body:{title}}) },
+  async listProjects(){ return fetchJSON('/api/projects'); },
+  async createProject(name){ return fetchJSON('/api/projects', {method:'POST', body:{name}}); },
   async getBoard(id){ return fetchJSON('/api/boards/'+id) },
   async getBoardFull(id){ return fetchJSON(`/api/boards/${id}/full`) },
   async updateBoard(id, title){ return fetchJSON(`/api/boards/${id}`, {method:'PATCH', body:{title}}) },
@@ -21,6 +23,24 @@ const api = {
   async updateCardFields(id, payload){ return fetchJSON(`/api/cards/${id}`, {method:'PATCH', body:payload}) },
   async deleteCard(id){ return fetchJSON(`/api/cards/${id}`, {method:'DELETE'}) },
   async moveBoard(id, newIndex){ return fetchJSON(`/api/boards/${id}/move`, {method:'POST', body:{new_index: newIndex}}) },
+  async myGroups(){ return fetchJSON('/api/my/groups'); },
+  async createMyGroup(name){ return fetchJSON('/api/groups', {method:'POST', body:{name}}); },
+  async myGroupUsers(id){ return fetchJSON(`/api/groups/${id}/users`); },
+  async myAddUserToGroup(id, user_id){ return fetchJSON(`/api/groups/${id}/users`, {method:'POST', body:{user_id}}); },
+  async myRemoveUserFromGroup(id, uid){ return fetchJSON(`/api/groups/${id}/users/${uid}`, {method:'DELETE'}); },
+  async myLeaveGroup(id){ return fetchJSON(`/api/groups/${id}/leave`, {method:'POST'}); },
+  async myDeleteGroup(id){ return fetchJSON(`/api/groups/${id}`, {method:'DELETE'}); },
+  async boardGroups(id){ return fetchJSON(`/api/boards/${id}/groups`); },
+  async addBoardGroup(id, group_id){ return fetchJSON(`/api/boards/${id}/groups`, {method:'POST', body:{group_id}}); },
+  async removeBoardGroup(id, gid){ return fetchJSON(`/api/boards/${id}/groups/${gid}`, {method:'DELETE'}) },
+  // Admin
+  async adminListGroups(){ return fetchJSON('/api/admin/groups'); },
+  async adminCreateGroup(name){ return fetchJSON('/api/admin/groups', {method:'POST', body:{name}}); },
+  async adminDeleteGroup(id){ return fetchJSON(`/api/admin/groups/${id}`, {method:'DELETE'}); },
+  async adminGroupUsers(id){ return fetchJSON(`/api/admin/groups/${id}/users`); },
+  async adminAddUserToGroup(id, user_id){ return fetchJSON(`/api/admin/groups/${id}/users`, {method:'POST', body:{user_id}}); },
+  async adminRemoveUserFromGroup(id, uid){ return fetchJSON(`/api/admin/groups/${id}/users/${uid}`, {method:'DELETE'}); },
+  async adminListUsers(q, limit){ const p = new URLSearchParams(); if(q) p.set('q', q); if(limit) p.set('limit', String(limit)); return fetchJSON(`/api/admin/users${p.toString()?('?' + p.toString()):''}`); },
 };
 
 async function fetchJSON(url, opts={}){
@@ -78,6 +98,17 @@ function applyThemeIcon(mode){
   }
 }
 
+function applySidebarState(collapsed){
+  const root = document.getElementById('app'); if(!root) return;
+  if(collapsed){ root.classList.add('sidebar-collapsed'); }
+  else { root.classList.remove('sidebar-collapsed'); }
+  const btn = document.getElementById('btnSidebarToggle');
+  if(btn){
+  btn.title = collapsed ? 'Развернуть панель' : 'Свернуть панель';
+    btn.setAttribute('aria-label', btn.title);
+  }
+}
+
 function getPreferredTheme(){
   const saved = localStorage.getItem('theme');
   if(saved === 'light' || saved === 'dark' || saved === 'auto') return saved;
@@ -97,7 +128,6 @@ function setTheme(mode){
 function confirmDialog(message){
   return new Promise((resolve) => {
     els.confirmMessage.textContent = message || 'Вы уверены?';
-    // Ensure previous returnValue cleared
     els.dlgConfirm.returnValue = '';
     els.dlgConfirm.showModal();
     const onClose = () => {
@@ -113,6 +143,17 @@ init();
 async function init(){
   // Theme init
   const mode = getPreferredTheme(); setTheme(mode); applyThemeIcon(mode);
+  // Sidebar collapsed state init
+  try{ const saved = JSON.parse(localStorage.getItem('sidebarCollapsed')||''); if(typeof saved === 'boolean') applySidebarState(saved); }catch{}
+  const btnSidebar = document.getElementById('btnSidebarToggle');
+  if(btnSidebar){
+    btnSidebar.addEventListener('click', () => {
+      const root = document.getElementById('app');
+      const collapsed = !root.classList.contains('sidebar-collapsed');
+      applySidebarState(collapsed);
+      try{ localStorage.setItem('sidebarCollapsed', JSON.stringify(collapsed)); }catch{}
+    });
+  }
   const btnTheme = document.getElementById('btnTheme');
   if(btnTheme){
     btnTheme.innerHTML = '<svg><use href="#i-auto"></use></svg>';
@@ -122,6 +163,45 @@ async function init(){
       localStorage.setItem('theme', next); setTheme(next);
     });
   }
+  const scopeSel = document.getElementById('boardsScope');
+  // Новые переключатели фильтра: Мои/Группы
+  const scopeMineBtn = document.getElementById('scopeMine');
+  const scopeGroupsBtn = document.getElementById('scopeGroups');
+  const loadScope = () => {
+    try{
+      const s = JSON.parse(localStorage.getItem('boardsScopeToggles')||'');
+      if(s && typeof s.mine==='boolean' && typeof s.groups==='boolean'){
+        if(scopeMineBtn) scopeMineBtn.setAttribute('aria-pressed', String(!!s.mine));
+        if(scopeGroupsBtn) scopeGroupsBtn.setAttribute('aria-pressed', String(!!s.groups));
+      }
+    }catch{}
+    // Если оба выключены, включим оба по умолчанию
+    const mineOn = scopeMineBtn && scopeMineBtn.getAttribute('aria-pressed')==='true';
+    const groupsOn = scopeGroupsBtn && scopeGroupsBtn.getAttribute('aria-pressed')==='true';
+    if(scopeMineBtn && scopeGroupsBtn && !mineOn && !groupsOn){ scopeMineBtn.setAttribute('aria-pressed','true'); scopeGroupsBtn.setAttribute('aria-pressed','true'); }
+  };
+  const saveScope = () => {
+    try{ localStorage.setItem('boardsScopeToggles', JSON.stringify({ mine: scopeMineBtn?.getAttribute('aria-pressed')==='true', groups: scopeGroupsBtn?.getAttribute('aria-pressed')==='true' })); }catch{}
+  };
+  const ensureAtLeastOne = (toggledBtn) => {
+    const mineOn = scopeMineBtn?.getAttribute('aria-pressed')==='true';
+    const groupsOn = scopeGroupsBtn?.getAttribute('aria-pressed')==='true';
+    if(!mineOn && !groupsOn){
+      // Включим другой, если пользователь выключил последний
+      if(toggledBtn===scopeMineBtn && scopeGroupsBtn) scopeGroupsBtn.setAttribute('aria-pressed','true');
+      if(toggledBtn===scopeGroupsBtn && scopeMineBtn) scopeMineBtn.setAttribute('aria-pressed','true');
+    }
+  };
+  const onToggle = (btn) => {
+    const cur = btn.getAttribute('aria-pressed')==='true';
+    btn.setAttribute('aria-pressed', String(!cur));
+    ensureAtLeastOne(btn); saveScope(); refreshBoards();
+  };
+  if(scopeMineBtn) scopeMineBtn.addEventListener('click', () => onToggle(scopeMineBtn));
+  if(scopeGroupsBtn) scopeGroupsBtn.addEventListener('click', () => onToggle(scopeGroupsBtn));
+  loadScope();
+  const btnGroupsPanel = document.getElementById('btnGroupsPanel');
+  if(btnGroupsPanel){ btnGroupsPanel.addEventListener('click', openGroupsPanel); }
 
   // Try to fetch current user; if not authorized, leave user null
   try {
@@ -134,16 +214,29 @@ async function init(){
 function bindUI(){
   const btnLogout = document.getElementById('btnLogout');
   if(btnLogout){ btnLogout.addEventListener('click', async () => { try { await api.logout(); location.href = '/web/login.html'; } catch(e){ alert('Не удалось выйти: '+e.message); } }); }
-  els.btnNewBoard.addEventListener('click', () => { els.formBoard.reset(); els.dlgBoard.returnValue=''; els.dlgBoard.showModal(); });
+  els.btnNewBoard.addEventListener('click', async () => {
+    els.formBoard.reset();
+    // populate projects
+    const sel = document.getElementById('projectSelect'); if(sel){ sel.innerHTML=''; try{ const items = await api.listProjects(); const opt0=document.createElement('option'); opt0.value=''; opt0.textContent='(без проекта)'; sel.appendChild(opt0); for(const p of (items||[])){ const o=document.createElement('option'); o.value=String(p.id); o.textContent=p.name; sel.appendChild(o);} } catch{} }
+    els.dlgBoard.returnValue=''; els.dlgBoard.showModal();
+  });
   els.dlgBoard.addEventListener('close', async () => {
     if(els.dlgBoard.returnValue === 'ok'){
       const fd = new FormData(els.formBoard);
-      const title = fd.get('title').trim(); if(!title) return;
-      const b = await api.createBoard(title); await refreshBoards(); openBoard(b.id);
+      const title = (fd.get('title')||'').toString().trim(); if(!title) return;
+      const project_id = parseInt((fd.get('project_id')||'').toString(), 10) || 0;
+      const b = await fetchJSON('/api/boards', {method:'POST', body:{ title, project_id }});
+      await refreshBoards(); openBoard(b.id);
     } else { els.formBoard.reset(); }
   });
   // Cancel buttons should behave like Esc (no validation)
   els.dlgBoard.querySelector('button[value="cancel"][type="button"]').addEventListener('click', () => { els.formBoard.reset(); els.dlgBoard.close('cancel'); });
+  const btnNewProject = document.getElementById('btnNewProject');
+  if(btnNewProject){ btnNewProject.addEventListener('click', async () => {
+    const name = await inputDialog({ title:'Новый проект', label:'Название проекта' }); if(!name) return;
+    try { await api.createProject(name.trim()); const sel=document.getElementById('projectSelect'); if(sel){ const items = await api.listProjects(); sel.innerHTML=''; const opt0=document.createElement('option'); opt0.value=''; opt0.textContent='(без проекта)'; sel.appendChild(opt0); for(const p of (items||[])){ const o=document.createElement('option'); o.value=String(p.id); o.textContent=p.name; sel.appendChild(o);} sel.selectedIndex = 1; } }
+    catch(err){ alert('Не удалось создать проект: ' + err.message); }
+  }); }
 
   els.btnNewList.addEventListener('click', () => { if(!state.currentBoardId) return; els.formList.reset(); els.dlgList.returnValue=''; els.dlgList.showModal(); });
   els.dlgList.addEventListener('close', async () => {
@@ -202,6 +295,57 @@ function bindUI(){
     catch(err){ alert('Не удалось удалить доску: ' + err.message); }
   });
 
+  // Board groups access dialog
+  const btnBoardGroups = document.getElementById('btnBoardGroups');
+  const dlgGroups = document.getElementById('dlgGroups');
+  const groupsList = document.getElementById('groupsList');
+  const formGroups = document.getElementById('formGroups');
+  if(btnBoardGroups && dlgGroups && groupsList){
+    btnBoardGroups.addEventListener('click', async () => {
+      if(!state.currentBoardId) return;
+      // Only board owner may manage access
+      const board = state.boards.find(b => b.id === state.currentBoardId);
+      if(!(state.user && board && board.created_by && state.user.id === board.created_by)){
+        alert('Только владелец доски может управлять доступом.');
+        return;
+      }
+      groupsList.innerHTML = 'Загрузка...'; dlgGroups.returnValue=''; dlgGroups.showModal();
+      try {
+        const [mine, current] = await Promise.all([api.myGroups(), api.boardGroups(state.currentBoardId)]);
+        const currentSet = new Set((current||[]).map(g=>g.id));
+        groupsList.innerHTML = '';
+        if(!mine || mine.length===0){
+          groupsList.textContent = 'Вы не состоите ни в одной группе.';
+        } else {
+          for(const g of mine){
+            const id = `g_${g.id}`;
+            const row = document.createElement('label'); row.className='group-row';
+            row.innerHTML = `<input type="checkbox" id="${id}" data-gid="${g.id}"> <span>${escapeHTML(g.name)}</span>`;
+            const cb = row.querySelector('input'); cb.checked = currentSet.has(g.id);
+            groupsList.appendChild(row);
+          }
+        }
+      } catch(err){ groupsList.textContent = 'Ошибка загрузки групп: ' + err.message; }
+    });
+    dlgGroups.addEventListener('close', async () => {
+      if(dlgGroups.returnValue !== 'ok') return;
+      if(!state.currentBoardId) return;
+      try {
+        const [mine, current] = await Promise.all([api.myGroups(), api.boardGroups(state.currentBoardId)]);
+        const currentSet = new Set((current||[]).map(g=>g.id));
+        const rows = [...groupsList.querySelectorAll('input[type="checkbox"][data-gid]')];
+        for(const cb of rows){
+          const gid = parseInt(cb.dataset.gid, 10);
+          const should = cb.checked; const has = currentSet.has(gid);
+          if(should && !has){ try { await api.addBoardGroup(state.currentBoardId, gid); } catch(err){ console.warn('add group failed', err.message); } }
+          if(!should && has){ try { await api.removeBoardGroup(state.currentBoardId, gid); } catch(err){ console.warn('remove group failed', err.message); } }
+        }
+      } catch(err){ console.warn('sync groups failed:', err.message); }
+    });
+    const cancelBtn = formGroups?.querySelector('button[value="cancel"][type="button"]');
+    if(cancelBtn){ cancelBtn.addEventListener('click', () => { dlgGroups.close('cancel'); }); }
+  }
+
   // Card view dialog
   els.btnCloseCardView.addEventListener('click', () => els.dlgCardView.close());
   els.btnSaveCardView.addEventListener('click', async () => {
@@ -247,6 +391,189 @@ function bindUI(){
   };
   bindDtInput(els.dueAtCreate);
   bindDtInput(els.cvDueAt);
+}
+
+
+async function openGroupsPanel(){
+  const dlg = document.getElementById('dlgGroupsPanel');
+  const list = document.getElementById('groupsPanelList');
+  
+  if(!dlg || !list) return;
+  dlg.returnValue=''; dlg.showModal();
+  // close button
+  const closeBtn = dlg.querySelector('button[value="cancel"]');
+  if(closeBtn){ closeBtn.onclick = () => dlg.close('cancel'); }
+
+  const renderMine = async () => {
+    list.innerHTML = 'Загрузка…';
+    try {
+      const mine = await api.myGroups();
+      list.innerHTML = '';
+      // Блок: создание своей группы
+      const tools = document.createElement('div'); tools.className='admin-actions';
+      tools.innerHTML = `<input id="gpNewGroupNameUser" placeholder="Название группы"><button id="gpBtnCreateGroupUser" class="btn" type="button">Создать группу</button>`;
+      list.appendChild(tools);
+      const hint = document.createElement('div'); hint.className='muted'; hint.textContent = 'Создайте свои группы. Создатель — администратор.'; list.appendChild(hint);
+
+      // Разделы: я админ и я участник
+      const adminGroups = (mine||[]).filter(g => (g.role||0) >= 2);
+      const memberGroups = (mine||[]).filter(g => (g.role||0) < 2);
+
+      const section = (title) => { const h=document.createElement('h4'); h.textContent=title; list.appendChild(h); };
+      section('Мои группы (я админ)');
+      if(adminGroups.length===0){ const d=document.createElement('div'); d.className='muted'; d.textContent='Администратор ни в одной группе.'; list.appendChild(d); }
+      for(const g of adminGroups){
+        const row = document.createElement('div'); row.className='group-row';
+        row.innerHTML = `<span><svg aria-hidden="true" style="width:14px;height:14px;vertical-align:-2px;margin-right:6px"><use href="#i-users"></use></svg>${escapeHTML(g.name)}</span><div class="spacer"></div><button class="btn" data-act="users" data-id="${g.id}">Пользователи…</button><button class="btn" data-act="del" data-id="${g.id}">Удалить</button>`;
+        list.appendChild(row);
+      }
+      section('Группы, в которых я состою');
+      if(memberGroups.length===0){ const d=document.createElement('div'); d.className='muted'; d.textContent='Нет групп.'; list.appendChild(d); }
+      for(const g of memberGroups){
+        const row = document.createElement('div'); row.className='group-row';
+        row.innerHTML = `<span><svg aria-hidden="true" style="width:14px;height:14px;vertical-align:-2px;margin-right:6px"><use href="#i-user"></use></svg>${escapeHTML(g.name)}</span><div class="spacer"></div><button class="btn" data-act="leave" data-id="${g.id}">Выйти</button>`;
+        list.appendChild(row);
+      }
+    } catch(err){ list.textContent = 'Ошибка: ' + err.message; }
+  };
+
+
+  const wireUserCreate = () => {
+    const userNameEl = document.getElementById('gpNewGroupNameUser');
+    const userBtn = document.getElementById('gpBtnCreateGroupUser');
+    if(userBtn){
+      userBtn.onclick = async () => {
+        const name = (userNameEl.value||'').trim(); if(!name) return;
+        try { await api.createMyGroup(name); userNameEl.value=''; await rerender(); }
+        catch(err){ alert('Не удалось создать группу: ' + err.message); }
+      };
+    }
+  };
+
+  const rerender = async () => { await renderMine(); wireUserCreate(); };
+
+  await rerender();
+
+  // no global admin tools here
+
+  list.onclick = async (e) => {
+    const btn = e.target.closest('button'); if(!btn) return;
+    const id = parseInt(btn.dataset.id,10);
+    if(btn.dataset.act==='del'){
+      const ok = await confirmDialog('Удалить группу?'); if(!ok) return;
+      try{
+        // Если пользователь админ — удаление своей группы, иначе (если админ системы) — админский маршрут
+        if(state.user && state.user.is_admin){ try { await api.adminDeleteGroup(id); } catch(e) { /* может не быть прав если это чужая группа */ } }
+        await api.myDeleteGroup(id);
+        await rerender();
+      }catch(err){ alert('Не удалось удалить: '+err.message); }
+    }
+    if(btn.dataset.act==='users'){
+      // Открыть диалог управления участниками; если не админ системы — используем self-эндпоинты в обёртке
+      openMembersDialogSelf(id);
+    }
+    if(btn.dataset.act==='leave'){
+      const ok = await confirmDialog('Покинуть эту группу?'); if(!ok) return;
+      try { await api.myLeaveGroup(id); await rerender(); }
+      catch(err){ alert('Не удалось выйти из группы: ' + err.message); }
+    }
+  };
+}
+
+function openMembersDialogSelf(groupId){
+  const dlg = document.getElementById('dlgMembers'); const list = document.getElementById('membersList'); const inp = document.getElementById('userSearch'); const status = document.getElementById('membersStatus');
+  if(!dlg) return;
+  const cancelBtn = document.querySelector('#formMembers button[value="cancel"][type="button"]');
+  if(cancelBtn){ cancelBtn.onclick = () => dlg.close('cancel'); }
+  const renderMembers = async () => {
+    list.innerHTML = 'Загрузка...'; if(status) status.textContent='';
+    try{
+      const users = await api.myGroupUsers(groupId);
+      list.innerHTML = '';
+      for(const u of (users||[])){
+        const row = document.createElement('div'); row.className='group-row';
+        row.innerHTML = `<span>${escapeHTML(u.name||u.email)} &lt;${escapeHTML(u.email)}&gt;</span><div class="spacer"></div><button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`;
+        list.appendChild(row);
+      }
+      if(status) status.textContent = `Участников: ${(users||[]).length}`;
+      if(list.innerHTML==='') list.textContent = 'Пока пусто.';
+    }catch(err){ list.textContent = 'Ошибка: '+err.message; }
+  };
+  const searchAndRender = async () => {
+    const q = (inp.value||'').trim(); if(!q){ renderMembers(); return; }
+    list.innerHTML = 'Поиск...'; if(status) status.textContent='';
+    try{
+      // использовать self-поиск
+      const params = new URLSearchParams({ q, limit: '20' });
+      const users = await fetchJSON(`/api/groups/${groupId}/users/search?${params.toString()}`);
+      const members = await api.myGroupUsers(groupId); const memberSet = new Set((members||[]).map(u=>u.id));
+      list.innerHTML = '';
+      for(const u of (users||[])){
+        const isMember = memberSet.has(u.id);
+        const row = document.createElement('div'); row.className='group-row';
+        row.innerHTML = `<span>${escapeHTML(u.name||u.email)} &lt;${escapeHTML(u.email)}&gt;</span><div class="spacer"></div>` + (isMember? `<button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`: `<button class="btn" data-act="add" data-id="${u.id}">Добавить</button>`);
+        list.appendChild(row);
+      }
+      if(status) status.textContent = `Найдено: ${(users||[]).length}`;
+      if(list.innerHTML==='') list.textContent = 'Ничего не найдено.';
+    }catch(err){ list.textContent = 'Ошибка поиска: '+err.message; }
+  };
+  list.onclick = async (e) => {
+    const btn = e.target.closest('button'); if(!btn) return; const uid = parseInt(btn.dataset.id,10);
+    if(btn.dataset.act==='add'){ try{ await api.myAddUserToGroup(groupId, uid); await searchAndRender(); }catch(err){ alert('Не удалось добавить: '+err.message); } }
+    if(btn.dataset.act==='rm'){ try{ await api.myRemoveUserFromGroup(groupId, uid); await searchAndRender(); }catch(err){ alert('Не удалось убрать: '+err.message); } }
+  };
+  // Debounced search
+  let t; inp.oninput = () => { clearTimeout(t); t = setTimeout(searchAndRender, 250); };
+  dlg.returnValue=''; dlg.showModal();
+  renderMembers();
+}
+
+function openMembersDialog(groupId){
+  const dlg = document.getElementById('dlgMembers'); const list = document.getElementById('membersList'); const inp = document.getElementById('userSearch'); const status = document.getElementById('membersStatus');
+  if(!dlg) return;
+  const cancelBtn = document.querySelector('#formMembers button[value="cancel"][type="button"]');
+  if(cancelBtn){ cancelBtn.onclick = () => dlg.close('cancel'); }
+  const renderMembers = async () => {
+    list.innerHTML = 'Загрузка...'; if(status) status.textContent='';
+    try{
+      const users = await api.adminGroupUsers(groupId);
+      list.innerHTML = '';
+      for(const u of (users||[])){
+        const row = document.createElement('div'); row.className='group-row';
+        row.innerHTML = `<span>${escapeHTML(u.name||u.email)} &lt;${escapeHTML(u.email)}&gt;</span><div class="spacer"></div><button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`;
+        list.appendChild(row);
+      }
+      if(status) status.textContent = `Участников: ${(users||[]).length}`;
+      if(list.innerHTML==='') list.textContent = 'Пока пусто.';
+    }catch(err){ list.textContent = 'Ошибка: '+err.message; }
+  };
+  const searchAndRender = async () => {
+    const q = (inp.value||'').trim(); if(!q){ renderMembers(); return; }
+    list.innerHTML = 'Поиск...'; if(status) status.textContent='';
+    try{
+      const users = await api.adminListUsers(q, 20);
+      const members = await api.adminGroupUsers(groupId); const memberSet = new Set((members||[]).map(u=>u.id));
+      list.innerHTML = '';
+      for(const u of (users||[])){
+        const isMember = memberSet.has(u.id);
+        const row = document.createElement('div'); row.className='group-row';
+        row.innerHTML = `<span>${escapeHTML(u.name||u.email)} &lt;${escapeHTML(u.email)}&gt;</span><div class="spacer"></div>` + (isMember? `<button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`: `<button class="btn" data-act="add" data-id="${u.id}">Добавить</button>`);
+        list.appendChild(row);
+      }
+      if(status) status.textContent = `Найдено: ${(users||[]).length}`;
+      if(list.innerHTML==='') list.textContent = 'Ничего не найдено.';
+    }catch(err){ list.textContent = 'Ошибка поиска: '+err.message; }
+  };
+  list.onclick = async (e) => {
+    const btn = e.target.closest('button'); if(!btn) return; const uid = parseInt(btn.dataset.id,10);
+    if(btn.dataset.act==='add'){ try{ await api.adminAddUserToGroup(groupId, uid); await searchAndRender(); }catch(err){ alert('Не удалось добавить: '+err.message); } }
+    if(btn.dataset.act==='rm'){ try{ await api.adminRemoveUserFromGroup(groupId, uid); await searchAndRender(); }catch(err){ alert('Не удалось убрать: '+err.message); } }
+  };
+  // Debounced search
+  let t; inp.oninput = () => { clearTimeout(t); t = setTimeout(searchAndRender, 250); };
+  dlg.returnValue=''; dlg.showModal();
+  renderMembers();
 }
 
 function updateUserBar(){
@@ -396,21 +723,22 @@ async function buildContextMenuItems(e){
   if(targetBoardLi){
     const boardId = parseInt(targetBoardLi.dataset.id, 10);
     const b = state.boards.find(x => x.id === boardId);
+    const isOwner = !!(state.user && b && b.created_by && state.user.id === b.created_by);
     return [
       { label: 'Открыть доску', action: () => openBoard(boardId) },
-    { label: 'Переименовать доску', action: async () => {
+    { label: 'Переименовать доску', disabled: !isOwner, action: async () => {
       const current = b?.title || targetBoardLi.querySelector('.t')?.textContent?.trim() || '';
       const name = await inputDialog({ title:'Переименование доски', label:'Новое название', value: current }); if(!name || !name.trim() || name.trim() === current) return;
           try { await api.updateBoard(boardId, name.trim()); if(b){ b.title = name.trim(); } const t = targetBoardLi.querySelector('.t'); if(t) t.textContent = name.trim(); await refreshBoards(); }
           catch(err){ alert('Не удалось переименовать: ' + err.message); }
         } },
-      { label: 'Цвет…', action: async () => {
+      { label: 'Цвет…', disabled: !isOwner, action: async () => {
           const color = await pickColor(b?.color || ''); if(color === undefined) return;
           try { await api.setBoardColor(boardId, color || ''); if(b){ b.color = color || ''; } if(color) targetBoardLi.style.setProperty('--clr', color); else targetBoardLi.style.removeProperty('--clr'); }
           catch(err){ alert('Не удалось сохранить цвет доски: ' + err.message); }
         } },
       { label: '---' },
-      { label: 'Удалить доску', danger: true, action: async () => {
+      { label: 'Удалить доску', danger: true, disabled: !isOwner, action: async () => {
           const ok = await confirmDialog('Удалить доску безвозвратно?'); if(!ok) return;
           try { await api.deleteBoard(boardId); await refreshBoards(); if(state.currentBoardId === boardId){ state.currentBoardId = null; els.boardTitle.textContent=''; els.lists.innerHTML=''; }
           } catch(err){ alert('Не удалось удалить доску: ' + err.message); }
@@ -429,21 +757,22 @@ async function buildContextMenuItems(e){
     const b = state.boards.find(x => x.id === boardId);
     const base = [];
     if(boardId){
+      const isOwner = !!(state.user && b && b.created_by && state.user.id === b.created_by);
       base.push(
         { label: 'Новый список', action: () => { if(!state.currentBoardId) return; els.formList.reset(); els.dlgList.returnValue=''; els.dlgList.showModal(); } },
-    { label: 'Переименовать доску', action: async () => {
+    { label: 'Переименовать доску', disabled: !isOwner, action: async () => {
       const current = els.boardTitle.textContent.trim();
       const name = await inputDialog({ title:'Переименование доски', label:'Новое название', value: current }); if(!name || !name.trim() || name.trim() === current) return;
             try { await api.updateBoard(boardId, name.trim()); els.boardTitle.textContent = name.trim(); await refreshBoards(); }
             catch(err){ alert('Не удалось переименовать: ' + err.message); }
           } },
-        { label: 'Цвет…', action: async () => {
+        { label: 'Цвет…', disabled: !isOwner, action: async () => {
             const color = await pickColor(b?.color || ''); if(color === undefined) return;
             try { await api.setBoardColor(boardId, color || ''); if(b){ b.color = color || ''; } await refreshBoards(); }
             catch(err){ alert('Не удалось сохранить цвет доски: ' + err.message); }
           } },
         { label: '---' },
-        { label: 'Удалить доску', danger: true, action: async () => {
+        { label: 'Удалить доску', danger: true, disabled: !isOwner, action: async () => {
             const ok = await confirmDialog('Удалить текущую доску безвозвратно?'); if(!ok) return;
             try { await api.deleteBoard(boardId); await refreshBoards(); state.currentBoardId = null; els.boardTitle.textContent = ''; els.lists.innerHTML=''; }
             catch(err){ alert('Не удалось удалить доску: ' + err.message); }
@@ -581,33 +910,61 @@ function pickColor(current){
   });
 }
 
+function updateBoardHeaderActions(){
+  const enabled = !!state.currentBoardId;
+  const btns = [document.getElementById('btnBoardGroups'), els.btnRenameBoard, els.btnDeleteBoard, els.btnNewList];
+  const board = state.boards.find(b => b.id === state.currentBoardId) || null;
+  const isOwner = !!(state.user && board && board.created_by && state.user.id === board.created_by);
+  for(const b of btns){ if(!b) continue; b.disabled = !enabled || (!isOwner && (b.id==='btnBoardGroups' || b===els.btnRenameBoard || b===els.btnDeleteBoard)); }
+}
+
 async function refreshBoards(){
-  const data = await api.getBoards().catch(err => { console.warn('getBoards failed:', err.message); return null; });
+  // Определяем область на основе переключателей
+  const mineOn = (document.getElementById('scopeMine')?.getAttribute('aria-pressed')==='true');
+  const groupsOn = (document.getElementById('scopeGroups')?.getAttribute('aria-pressed')==='true');
+  const scope = mineOn && groupsOn ? 'all' : mineOn ? 'mine' : groupsOn ? 'groups' : 'mine';
+  const data = await api.getBoards(scope).catch(err => { console.warn('getBoards failed:', err.message); return null; });
   state.boards = Array.isArray(data) ? data : (data && Array.isArray(data.boards) ? data.boards : []);
   els.boards.innerHTML = '';
   for(const b of (state.boards || [])){
     const li = document.createElement('li');
   li.dataset.id = b.id;
-  li.innerHTML = `<span class="drag-handle" title="Перетащить доску"><svg aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="ico"><svg aria-hidden="true"><use href="#i-board"></use></svg></span><span class="t">${escapeHTML(b.title)}</span><button class="btn icon btn-color" title="Цвет доски" aria-label="Цвет"><svg aria-hidden="true"><use href="#i-palette"></use></svg></button>`;
+  const isOwner = !!(state.user && b.created_by && state.user.id === b.created_by);
+  const iconId = (!isOwner && b.via_group) ? '#i-users' : '#i-board';
+  li.innerHTML = `<span class="drag-handle" title="Перетащить доску"><svg aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="ico"><svg aria-hidden="true"><use href="${iconId}"></use></svg></span><span class="t">${escapeHTML(b.title)}</span><button class="btn icon btn-color" title="Цвет доски" aria-label="Цвет"><svg aria-hidden="true"><use href="#i-palette"></use></svg></button>`;
     li.addEventListener('click', () => openBoard(b.id));
     if(b.color){ li.style.setProperty('--clr', b.color); }
     const colorBtn = li.querySelector('.btn-color');
     if(colorBtn){
       colorBtn.addEventListener('click', async (ev) => {
         ev.stopPropagation();
+        // Only owner may change board color
+        if(!(state.user && b.created_by && state.user.id === b.created_by)) return;
         const color = await pickColor(b.color || '');
         if(color === undefined) return;
         try { await api.setBoardColor(b.id, color || ''); b.color = color || ''; if(b.color) li.style.setProperty('--clr', b.color); else li.style.removeProperty('--clr'); }
         catch(err){ alert('Не удалось сохранить цвет: ' + err.message); }
       });
+      if(!(state.user && b.created_by && state.user.id === b.created_by)){
+        colorBtn.disabled = true;
+      }
     }
     if(b.id === state.currentBoardId) li.classList.add('active');
     els.boards.appendChild(li);
   }
   enableBoardsDnD();
+  // Ensure selection exists
+  const ids = new Set((state.boards||[]).map(b=>b.id));
+  if(!state.currentBoardId || !ids.has(state.currentBoardId)){
+    if(state.boards && state.boards.length){ await openBoard(state.boards[0].id); }
+    else {
+      state.currentBoardId = null; els.boardTitle.textContent = ''; els.lists.innerHTML = '';
+    }
+  }
+  updateBoardHeaderActions();
 }
 
-async function openBoard(id){ state.currentBoardId = id; await renderBoard(id);
+async function openBoard(id){ state.currentBoardId = id; updateBoardHeaderActions(); await renderBoard(id);
   [...els.boards.children].forEach(li => li.classList.toggle('active', parseInt(li.dataset.id,10)===id)); }
 
 let sse;
@@ -714,7 +1071,7 @@ function buildListColumn(l){
       <h3 contenteditable="true" spellcheck="false">${escapeHTML(l.title)}</h3>
       <div class="spacer"></div>
   <button class="btn icon btn-color" title="Цвет списка" aria-label="Цвет"><svg aria-hidden="true"><use href="#i-palette"></use></svg></button>
-      <button class="btn icon btn-del-list" title="Удалить" aria-label="Удалить">
+  <button class="btn icon btn-del-list" title="Удалить список" aria-label="Удалить список">
         <svg aria-hidden="true"><use href="#i-trash" xlink:href="#i-trash"></use></svg>
       </button>
     </header>

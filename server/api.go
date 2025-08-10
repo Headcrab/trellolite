@@ -7,12 +7,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -22,10 +24,75 @@ type api struct {
 	store *Store
 	log   *slog.Logger
 	bus   *EventBus
+	// rate limiting buckets per IP:key
+	rlMu sync.Mutex
+	rl   map[string]*rateBucket
+	// dev password reset tokens (in-memory)
+	prMu  sync.Mutex
+	prTok map[string]resetReq
 }
 
 func newAPI(store *Store, log *slog.Logger) *api {
-	return &api{store: store, log: log, bus: NewEventBus()}
+	return &api{store: store, log: log, bus: NewEventBus(), rl: map[string]*rateBucket{}, prTok: map[string]resetReq{}}
+}
+
+type rateBucket struct {
+	count   int
+	resetAt time.Time
+}
+
+func (a *api) allow(ip, key string, max int, window time.Duration) bool {
+	now := time.Now()
+	rk := ip + ":" + key
+	a.rlMu.Lock()
+	b, ok := a.rl[rk]
+	if !ok || now.After(b.resetAt) {
+		b = &rateBucket{count: 0, resetAt: now.Add(window)}
+		a.rl[rk] = b
+	}
+	if b.count >= max {
+		a.rlMu.Unlock()
+		return false
+	}
+	b.count++
+	a.rlMu.Unlock()
+	return true
+}
+
+func (a *api) withRateLimit(name string, max int, window time.Duration, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ip := r.RemoteAddr
+		if !a.allow(ip, name, max, window) {
+			writeError(w, 429, "too many requests")
+			return
+		}
+		next(w, r)
+	}
+}
+
+type resetReq struct {
+	Email     string
+	ExpiresAt time.Time
+}
+
+func (a *api) putResetToken(email, token string, ttl time.Duration) {
+	a.prMu.Lock()
+	defer a.prMu.Unlock()
+	a.prTok[token] = resetReq{Email: email, ExpiresAt: time.Now().Add(ttl)}
+}
+func (a *api) takeResetToken(token string) (string, bool) {
+	a.prMu.Lock()
+	defer a.prMu.Unlock()
+	req, ok := a.prTok[token]
+	if !ok {
+		return "", false
+	}
+	if time.Now().After(req.ExpiresAt) {
+		delete(a.prTok, token)
+		return "", false
+	}
+	delete(a.prTok, token)
+	return req.Email, true
 }
 
 func parseID(s string) (int64, error) { return strconv.ParseInt(s, 10, 64) }
@@ -399,38 +466,140 @@ func (a *api) githubFetchUser(ctx context.Context, token string) (ghUser, string
 
 func (a *api) routes(mux *http.ServeMux) {
 	// Auth endpoints
-	mux.HandleFunc("POST /api/auth/register", a.handleRegister)
-	mux.HandleFunc("POST /api/auth/login", a.handleLogin)
+	mux.HandleFunc("POST /api/auth/register", a.withRateLimit("auth", 20, time.Minute, a.handleRegister))
+	mux.HandleFunc("POST /api/auth/login", a.withRateLimit("auth", 30, time.Minute, a.handleLogin))
 	mux.HandleFunc("POST /api/auth/logout", a.handleLogout)
 	mux.HandleFunc("GET /api/auth/me", a.handleMe)
 	mux.HandleFunc("GET /api/auth/providers", a.handleAuthProviders)
 	mux.HandleFunc("GET /api/auth/oauth/github/start", a.handleGithubStart)
 	mux.HandleFunc("GET /api/auth/oauth/github/callback", a.handleGithubCallback)
 
+	// Dev password reset (magic link in logs)
+	mux.HandleFunc("POST /api/auth/reset", a.withRateLimit("auth_reset", 10, time.Minute, a.handleResetRequest))
+	mux.HandleFunc("POST /api/auth/reset/confirm", a.withRateLimit("auth_reset", 20, time.Minute, a.handleResetConfirm))
+
 	mux.HandleFunc("GET /api/health", a.handleHealth)
 	mux.HandleFunc("GET /api/boards", a.handleListBoards)
 	mux.HandleFunc("POST /api/boards", a.requireAuth(a.handleCreateBoard))
-	mux.HandleFunc("GET /api/boards/{id}", a.handleGetBoard)
-	mux.HandleFunc("GET /api/boards/{id}/full", a.handleGetBoardFull)
-	mux.HandleFunc("GET /api/boards/{id}/events", a.handleBoardEvents)
+	mux.HandleFunc("GET /api/boards/{id}", a.requireAuth(a.handleGetBoard))
+	mux.HandleFunc("GET /api/boards/{id}/full", a.requireAuth(a.handleGetBoardFull))
+	mux.HandleFunc("GET /api/boards/{id}/events", a.requireAuth(a.handleBoardEvents))
 	mux.HandleFunc("PATCH /api/boards/{id}", a.requireAuth(a.handleUpdateBoard))
 	mux.HandleFunc("POST /api/boards/{id}/move", a.requireAuth(a.handleMoveBoard))
 	mux.HandleFunc("DELETE /api/boards/{id}", a.requireAuth(a.handleDeleteBoard))
 
-	mux.HandleFunc("GET /api/boards/{id}/lists", a.handleListsByBoard)
+	mux.HandleFunc("GET /api/boards/{id}/lists", a.requireAuth(a.handleListsByBoard))
 	mux.HandleFunc("POST /api/boards/{id}/lists", a.requireAuth(a.handleCreateList))
 	mux.HandleFunc("PATCH /api/lists/{id}", a.requireAuth(a.handleUpdateList))
 	mux.HandleFunc("POST /api/lists/{id}/move", a.requireAuth(a.handleMoveList))
 	mux.HandleFunc("DELETE /api/lists/{id}", a.requireAuth(a.handleDeleteList))
 
-	mux.HandleFunc("GET /api/lists/{id}/cards", a.handleCardsByList)
+	mux.HandleFunc("GET /api/lists/{id}/cards", a.requireAuth(a.handleCardsByList))
 	mux.HandleFunc("POST /api/lists/{id}/cards", a.requireAuth(a.handleCreateCard))
 	mux.HandleFunc("PATCH /api/cards/{id}", a.requireAuth(a.handleUpdateCard))
 	mux.HandleFunc("DELETE /api/cards/{id}", a.requireAuth(a.handleDeleteCard))
 	mux.HandleFunc("POST /api/cards/{id}/move", a.requireAuth(a.handleMoveCard))
 
-	mux.HandleFunc("GET /api/cards/{id}/comments", a.handleCommentsByCard)
+	mux.HandleFunc("GET /api/cards/{id}/comments", a.requireAuth(a.handleCommentsByCard))
 	mux.HandleFunc("POST /api/cards/{id}/comments", a.requireAuth(a.handleAddComment))
+
+	// Groups and board visibility
+	mux.HandleFunc("POST /api/groups", a.requireAuth(a.handleCreateGroupSelf))
+	mux.HandleFunc("GET /api/my/groups", a.requireAuth(a.handleMyGroups))
+	// Self-managed groups (creators/admins)
+	mux.HandleFunc("GET /api/groups/{id}/users", a.requireAuth(a.handleSelfGroupUsers))
+	mux.HandleFunc("GET /api/groups/{id}/users/search", a.requireAuth(a.handleSelfSearchUsers))
+	mux.HandleFunc("POST /api/groups/{id}/users", a.requireAuth(a.handleSelfAddUserToGroup))
+	mux.HandleFunc("DELETE /api/groups/{id}/users/{uid}", a.requireAuth(a.handleSelfRemoveUserFromGroup))
+	// Self leave from a group (any member can leave)
+	mux.HandleFunc("POST /api/groups/{id}/leave", a.requireAuth(a.handleSelfLeaveGroup))
+	mux.HandleFunc("DELETE /api/groups/{id}", a.requireAuth(a.handleSelfDeleteGroup))
+	mux.HandleFunc("GET /api/boards/{id}/groups", a.requireAuth(a.handleBoardGroups))
+	mux.HandleFunc("POST /api/boards/{id}/groups", a.requireAuth(a.handleBoardGroupAdd))
+	mux.HandleFunc("DELETE /api/boards/{id}/groups/{gid}", a.requireAuth(a.handleBoardGroupRemove))
+
+	// Admin: groups CRUD and membership
+	mux.HandleFunc("GET /api/admin/groups", a.requireAdmin(a.handleAdminListGroups))
+	mux.HandleFunc("POST /api/admin/groups", a.requireAdmin(a.handleAdminCreateGroup))
+	mux.HandleFunc("DELETE /api/admin/groups/{id}", a.requireAdmin(a.handleAdminDeleteGroup))
+	mux.HandleFunc("GET /api/admin/groups/{id}/users", a.requireAdmin(a.handleAdminGroupUsers))
+	mux.HandleFunc("POST /api/admin/groups/{id}/users", a.requireAdmin(a.handleAdminAddUserToGroup))
+	mux.HandleFunc("DELETE /api/admin/groups/{id}/users/{uid}", a.requireAdmin(a.handleAdminRemoveUserFromGroup))
+	mux.HandleFunc("GET /api/admin/users", a.requireAdmin(a.handleAdminListUsers))
+
+	// Projects
+	mux.HandleFunc("GET /api/projects", a.requireAuth(a.handleListProjects))
+	mux.HandleFunc("POST /api/projects", a.requireAuth(a.handleCreateProject))
+	mux.HandleFunc("GET /api/projects/{id}/members", a.requireAuth(a.handleProjectMembers))
+	mux.HandleFunc("POST /api/projects/{id}/members", a.requireAuth(a.handleAddProjectMember))
+	mux.HandleFunc("DELETE /api/projects/{id}/members/{uid}", a.requireAuth(a.handleRemoveProjectMember))
+}
+
+// POST /api/groups {name}
+func (a *api) handleCreateGroupSelf(w http.ResponseWriter, r *http.Request) {
+	u, err := a.currentUser(r)
+	if err != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	if e := readJSON(w, r, &req); e != nil || strings.TrimSpace(req.Name) == "" {
+		writeError(w, 400, "invalid payload")
+		return
+	}
+	g, e := a.store.CreateGroupOwned(r.Context(), u.ID, strings.TrimSpace(req.Name))
+	if e != nil {
+		a.log.Error("create group self", "err", e)
+		writeError(w, 400, "cannot create group")
+		return
+	}
+	writeJSON(w, 201, g)
+}
+
+// POST /api/auth/reset {email}
+func (a *api) handleResetRequest(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := readJSON(w, r, &req); err != nil || strings.TrimSpace(req.Email) == "" {
+		writeError(w, 400, "invalid payload")
+		return
+	}
+	email := strings.TrimSpace(req.Email)
+	// Generate token regardless of user existence (no enumeration)
+	b := make([]byte, 24)
+	_, _ = rand.Read(b)
+	tok := base64.RawURLEncoding.EncodeToString(b)
+	a.putResetToken(email, tok, 15*time.Minute)
+	// Log dev magic-link
+	host := r.Host
+	a.log.Info("password reset link (dev)", "email", email, "token", tok, "url", fmt.Sprintf("http://%s/web/login.html#reset=%s", host, tok))
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+// POST /api/auth/reset/confirm {token, new_password}
+func (a *api) handleResetConfirm(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Token, NewPassword string }
+	if err := readJSON(w, r, &req); err != nil || strings.TrimSpace(req.Token) == "" || len(req.NewPassword) < 6 {
+		writeError(w, 400, "invalid payload")
+		return
+	}
+	email, ok := a.takeResetToken(strings.TrimSpace(req.Token))
+	if !ok {
+		writeError(w, 400, "invalid token")
+		return
+	}
+	// Update password if user exists; if not, no-op for privacy
+	if strings.TrimSpace(email) != "" {
+		if err := a.store.UpdateUserPasswordByEmail(r.Context(), email, req.NewPassword); err != nil {
+			a.log.Error("reset password", "err", err)
+			writeError(w, 500, "internal error")
+			return
+		}
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
 // requireAuth wraps a handler and enforces a valid session
@@ -449,7 +618,17 @@ func (a *api) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) handleListBoards(w http.ResponseWriter, r *http.Request) {
-	items, err := a.store.ListBoards(r.Context())
+	// Only authenticated users can list boards; apply scope filter
+	u, errU := a.currentUser(r)
+	if errU != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	scope := r.URL.Query().Get("scope")
+	if scope == "" {
+		scope = "mine"
+	}
+	items, err := a.store.ListBoards(r.Context(), u.ID, scope)
 	if err != nil {
 		a.log.Error("list boards", "err", err)
 		writeError(w, 500, "internal error")
@@ -458,8 +637,14 @@ func (a *api) handleListBoards(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, items)
 }
 func (a *api) handleCreateBoard(w http.ResponseWriter, r *http.Request) {
+	u, errU := a.currentUser(r)
+	if errU != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
 	var req struct {
-		Title string `json:"title"`
+		Title     string `json:"title"`
+		ProjectID int64  `json:"project_id"`
 	}
 	if err := readJSON(w, r, &req); err != nil || len(req.Title) == 0 {
 		if err != nil {
@@ -468,18 +653,161 @@ func (a *api) handleCreateBoard(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid payload")
 		return
 	}
-	b, err := a.store.CreateBoard(r.Context(), req.Title)
+	b, err := a.store.CreateBoard(r.Context(), u.ID, req.Title)
 	if err != nil {
 		a.log.Error("create board", "err", err)
 		writeError(w, 500, "internal error")
 		return
 	}
+	if req.ProjectID != 0 {
+		// Only allow if user has access to this project
+		if ok, _ := a.store.CanAccessProject(r.Context(), req.ProjectID, u.ID); ok {
+			_ = a.store.SetBoardProject(r.Context(), b.ID, req.ProjectID)
+		}
+	}
 	writeJSON(w, 201, b)
+}
+
+// --- Projects endpoints ---
+func (a *api) handleListProjects(w http.ResponseWriter, r *http.Request) {
+	u, err := a.currentUser(r)
+	if err != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	items, e := a.store.ListProjects(r.Context(), u.ID)
+	if e != nil {
+		a.log.Error("list projects", "err", e)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, items)
+}
+
+func (a *api) handleCreateProject(w http.ResponseWriter, r *http.Request) {
+	u, err := a.currentUser(r)
+	if err != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	if e := readJSON(w, r, &req); e != nil || strings.TrimSpace(req.Name) == "" {
+		writeError(w, 400, "invalid payload")
+		return
+	}
+	p, e := a.store.CreateProject(r.Context(), u.ID, strings.TrimSpace(req.Name))
+	if e != nil {
+		a.log.Error("create project", "err", e)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 201, p)
+}
+
+func (a *api) handleProjectMembers(w http.ResponseWriter, r *http.Request) {
+	u, err := a.currentUser(r)
+	if err != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	id, e := parseID(r.PathValue("id"))
+	if e != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	if ok, e := a.store.CanAccessProject(r.Context(), id, u.ID); e != nil || !ok {
+		writeError(w, 403, "forbidden")
+		return
+	}
+	items, e2 := a.store.ProjectMembers(r.Context(), id)
+	if e2 != nil {
+		a.log.Error("project members", "err", e2)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, items)
+}
+
+func (a *api) handleAddProjectMember(w http.ResponseWriter, r *http.Request) {
+	u, err := a.currentUser(r)
+	if err != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	id, e := parseID(r.PathValue("id"))
+	if e != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	// Only project owner can add
+	if own, e := a.store.IsProjectOwner(r.Context(), id, u.ID); e != nil || !own {
+		writeError(w, 403, "forbidden")
+		return
+	}
+	var req struct {
+		UserID int64 `json:"user_id"`
+		Role   int   `json:"role"`
+	}
+	if e := readJSON(w, r, &req); e != nil || req.UserID == 0 {
+		writeError(w, 400, "invalid payload")
+		return
+	}
+	if e := a.store.AddProjectMember(r.Context(), id, req.UserID, req.Role); e != nil {
+		a.log.Error("add proj member", "err", e)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+func (a *api) handleRemoveProjectMember(w http.ResponseWriter, r *http.Request) {
+	u, err := a.currentUser(r)
+	if err != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	id, e := parseID(r.PathValue("id"))
+	if e != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	uid, e := parseID(r.PathValue("uid"))
+	if e != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	// Only project owner can remove
+	if own, e := a.store.IsProjectOwner(r.Context(), id, u.ID); e != nil || !own {
+		writeError(w, 403, "forbidden")
+		return
+	}
+	if e := a.store.RemoveProjectMember(r.Context(), id, uid); e != nil {
+		a.log.Error("rm proj member", "err", e)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
 }
 func (a *api) handleGetBoard(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r.PathValue("id"))
 	if err != nil {
 		writeError(w, 400, "bad id")
+		return
+	}
+	// Gate by access: owner or group member (auth required by wrapper)
+	u, errU := a.currentUser(r)
+	if errU != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	ok, e := a.store.CanAccessBoard(r.Context(), u.ID, id)
+	if e != nil {
+		a.log.Error("access check", "err", e)
+	}
+	if !ok {
+		writeError(w, 403, "forbidden")
 		return
 	}
 	b, err := a.store.GetBoard(r.Context(), id)
@@ -498,6 +826,16 @@ func (a *api) handleUpdateBoard(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r.PathValue("id"))
 	if err != nil {
 		writeError(w, 400, "bad id")
+		return
+	}
+	u, errU := a.currentUser(r)
+	if errU != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	// Only owner can update board properties
+	if own, e := a.store.IsBoardOwner(r.Context(), id, u.ID); e != nil || !own {
+		writeError(w, 403, "forbidden")
 		return
 	}
 	var req struct {
@@ -539,6 +877,16 @@ func (a *api) handleDeleteBoard(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "bad id")
 		return
 	}
+	u, errU := a.currentUser(r)
+	if errU != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	// Only owner can delete
+	if own, e := a.store.IsBoardOwner(r.Context(), id, u.ID); e != nil || !own {
+		writeError(w, 403, "forbidden")
+		return
+	}
 	if err := a.store.DeleteBoard(r.Context(), id); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			writeError(w, 404, "not found")
@@ -555,6 +903,15 @@ func (a *api) handleMoveBoard(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r.PathValue("id"))
 	if err != nil {
 		writeError(w, 400, "bad id")
+		return
+	}
+	u, errU := a.currentUser(r)
+	if errU != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	if own, e := a.store.IsBoardOwner(r.Context(), id, u.ID); e != nil || !own {
+		writeError(w, 403, "forbidden")
 		return
 	}
 	var req struct {
@@ -581,6 +938,19 @@ func (a *api) handleListsByBoard(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r.PathValue("id"))
 	if err != nil {
 		writeError(w, 400, "bad id")
+		return
+	}
+	u, errU := a.currentUser(r)
+	if errU != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	ok, e := a.store.CanAccessBoard(r.Context(), u.ID, id)
+	if e != nil {
+		a.log.Error("access check", "err", e)
+	}
+	if !ok {
+		writeError(w, 403, "forbidden")
 		return
 	}
 	items, err := a.store.ListsByBoard(r.Context(), id)
@@ -718,6 +1088,21 @@ func (a *api) handleCardsByList(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, 400, "bad id")
 		return
+	}
+	u, errU := a.currentUser(r)
+	if errU != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	if bid, e := a.store.BoardIDByList(r.Context(), id); e == nil {
+		ok, e2 := a.store.CanAccessBoard(r.Context(), u.ID, bid)
+		if e2 != nil {
+			a.log.Error("access check", "err", e2)
+		}
+		if !ok {
+			writeError(w, 403, "forbidden")
+			return
+		}
 	}
 	items, err := a.store.CardsByList(r.Context(), id)
 	if err != nil {
@@ -874,6 +1259,22 @@ func (a *api) handleCommentsByCard(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "bad id")
 		return
 	}
+	// authorize via board access from card
+	u, errU := a.currentUser(r)
+	if errU != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	if bid, _, e := a.store.BoardAndListByCard(r.Context(), id); e == nil {
+		ok, e2 := a.store.CanAccessBoard(r.Context(), u.ID, bid)
+		if e2 != nil {
+			a.log.Error("access check", "err", e2)
+		}
+		if !ok {
+			writeError(w, 403, "forbidden")
+			return
+		}
+	}
 	items, err := a.store.CommentsByCard(r.Context(), id)
 	if err != nil {
 		a.log.Error("comments by card", "err", err)
@@ -883,12 +1284,424 @@ func (a *api) handleCommentsByCard(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, items)
 }
 
+// --- Admin helpers and handlers ---
+func (a *api) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, err := a.currentUser(r)
+		if err != nil {
+			writeError(w, 401, "unauthorized")
+			return
+		}
+		if !u.IsAdmin {
+			writeError(w, 403, "forbidden")
+			return
+		}
+		next(w, r)
+	}
+}
+
+func (a *api) handleAdminListGroups(w http.ResponseWriter, r *http.Request) {
+	items, err := a.store.ListGroups(r.Context())
+	if err != nil {
+		a.log.Error("admin list groups", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, items)
+}
+
+func (a *api) handleAdminCreateGroup(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := readJSON(w, r, &req); err != nil || strings.TrimSpace(req.Name) == "" {
+		writeError(w, 400, "invalid payload")
+		return
+	}
+	g, err := a.store.CreateGroup(r.Context(), strings.TrimSpace(req.Name))
+	if err != nil {
+		a.log.Error("admin create group", "err", err)
+		writeError(w, 400, "cannot create group")
+		return
+	}
+	writeJSON(w, 201, g)
+}
+
+func (a *api) handleAdminDeleteGroup(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	if err := a.store.DeleteGroup(r.Context(), id); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			writeError(w, 404, "not found")
+			return
+		}
+		a.log.Error("admin delete group", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+func (a *api) handleAdminGroupUsers(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	users, err := a.store.GroupUsers(r.Context(), id)
+	if err != nil {
+		a.log.Error("admin group users", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, users)
+}
+
+func (a *api) handleAdminAddUserToGroup(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	var req struct {
+		UserID int64 `json:"user_id"`
+	}
+	if err := readJSON(w, r, &req); err != nil || req.UserID == 0 {
+		writeError(w, 400, "invalid payload")
+		return
+	}
+	if err := a.store.AddUserToGroup(r.Context(), id, req.UserID); err != nil {
+		a.log.Error("admin add user to group", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+func (a *api) handleAdminRemoveUserFromGroup(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	uid, err := parseID(r.PathValue("uid"))
+	if err != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	if err := a.store.RemoveUserFromGroup(r.Context(), id, uid); err != nil {
+		a.log.Error("admin remove user from group", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+func (a *api) handleAdminListUsers(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("q")
+	limit := 50
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+	items, err := a.store.ListUsers(r.Context(), q, limit)
+	if err != nil {
+		a.log.Error("admin list users", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, items)
+}
+
+// --- Groups & board visibility ---
+func (a *api) handleMyGroups(w http.ResponseWriter, r *http.Request) {
+	u, err := a.currentUser(r)
+	if err != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	groups, err := a.store.MyGroups(r.Context(), u.ID)
+	if err != nil {
+		a.log.Error("my groups", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, groups)
+}
+
+// --- Self-managed groups ---
+func (a *api) handleSelfGroupUsers(w http.ResponseWriter, r *http.Request) {
+	u, err := a.currentUser(r)
+	if err != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	gid, e := parseID(r.PathValue("id"))
+	if e != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	if ok, e2 := a.store.IsGroupAdmin(r.Context(), gid, u.ID); e2 != nil || !ok {
+		writeError(w, 403, "forbidden")
+		return
+	}
+	users, err := a.store.GroupUsersForSelf(r.Context(), gid)
+	if err != nil {
+		a.log.Error("self group users", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, users)
+}
+
+func (a *api) handleSelfAddUserToGroup(w http.ResponseWriter, r *http.Request) {
+	u, err := a.currentUser(r)
+	if err != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	gid, e := parseID(r.PathValue("id"))
+	if e != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	if ok, e2 := a.store.IsGroupAdmin(r.Context(), gid, u.ID); e2 != nil || !ok {
+		writeError(w, 403, "forbidden")
+		return
+	}
+	var req struct {
+		UserID int64 `json:"user_id"`
+	}
+	if e := readJSON(w, r, &req); e != nil || req.UserID == 0 {
+		writeError(w, 400, "invalid payload")
+		return
+	}
+	if err := a.store.AddUserToGroupSelf(r.Context(), gid, req.UserID); err != nil {
+		a.log.Error("self add user to group", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+func (a *api) handleSelfSearchUsers(w http.ResponseWriter, r *http.Request) {
+	u, err := a.currentUser(r)
+	if err != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	gid, e := parseID(r.PathValue("id"))
+	if e != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	if ok, e2 := a.store.IsGroupAdmin(r.Context(), gid, u.ID); e2 != nil || !ok {
+		writeError(w, 403, "forbidden")
+		return
+	}
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	limit := 20
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, e := strconv.Atoi(v); e == nil {
+			limit = n
+		}
+	}
+	items, e2 := a.store.ListUsers(r.Context(), q, limit)
+	if e2 != nil {
+		a.log.Error("self search users", "err", e2)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, items)
+}
+
+func (a *api) handleSelfRemoveUserFromGroup(w http.ResponseWriter, r *http.Request) {
+	u, err := a.currentUser(r)
+	if err != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	gid, e := parseID(r.PathValue("id"))
+	if e != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	uid, e := parseID(r.PathValue("uid"))
+	if e != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	if ok, e2 := a.store.IsGroupAdmin(r.Context(), gid, u.ID); e2 != nil || !ok {
+		writeError(w, 403, "forbidden")
+		return
+	}
+	if err := a.store.RemoveUserFromGroupSelf(r.Context(), gid, uid); err != nil {
+		a.log.Error("self rm user group", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+func (a *api) handleSelfDeleteGroup(w http.ResponseWriter, r *http.Request) {
+	u, err := a.currentUser(r)
+	if err != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	gid, e := parseID(r.PathValue("id"))
+	if e != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	if err := a.store.DeleteGroupIfAdmin(r.Context(), gid, u.ID); err != nil {
+		if err.Error() == "forbidden" {
+			writeError(w, 403, "forbidden")
+			return
+		}
+		a.log.Error("self delete group", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+// POST /api/groups/{id}/leave -- current user leaves the group (if member)
+func (a *api) handleSelfLeaveGroup(w http.ResponseWriter, r *http.Request) {
+	u, err := a.currentUser(r)
+	if err != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	gid, e := parseID(r.PathValue("id"))
+	if e != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	// Remove membership if exists; admins may also leave via this endpoint
+	if err := a.store.RemoveUserFromGroup(r.Context(), gid, u.ID); err != nil {
+		a.log.Error("self leave group", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+func (a *api) handleBoardGroups(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	// Only board owner may view/manage groups mapping
+	u, errU := a.currentUser(r)
+	if errU != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	if own, e := a.store.IsBoardOwner(r.Context(), id, u.ID); e != nil || !own {
+		writeError(w, 403, "forbidden")
+		return
+	}
+	groups, err := a.store.BoardGroups(r.Context(), id)
+	if err != nil {
+		a.log.Error("board groups", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, groups)
+}
+
+func (a *api) handleBoardGroupAdd(w http.ResponseWriter, r *http.Request) {
+	u, err := a.currentUser(r)
+	if err != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	id, err := parseID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	var req struct {
+		GroupID int64 `json:"group_id"`
+	}
+	if err := readJSON(w, r, &req); err != nil || req.GroupID == 0 {
+		writeError(w, 400, "invalid payload")
+		return
+	}
+	own, err := a.store.IsBoardOwner(r.Context(), id, u.ID)
+	if err != nil {
+		a.log.Error("check owner", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	if !own {
+		writeError(w, 403, "forbidden")
+		return
+	}
+	if err := a.store.AddBoardToGroup(r.Context(), id, req.GroupID); err != nil {
+		a.log.Error("add board group", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+func (a *api) handleBoardGroupRemove(w http.ResponseWriter, r *http.Request) {
+	u, err := a.currentUser(r)
+	if err != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	id, err := parseID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	gid, err := parseID(r.PathValue("gid"))
+	if err != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	own, err := a.store.IsBoardOwner(r.Context(), id, u.ID)
+	if err != nil {
+		a.log.Error("check owner", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	if !own {
+		writeError(w, 403, "forbidden")
+		return
+	}
+	if err := a.store.RemoveBoardFromGroup(r.Context(), id, gid); err != nil {
+		a.log.Error("remove board group", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
 // SSE endpoint for a board
 func (a *api) handleBoardEvents(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r.PathValue("id"))
 	if err != nil {
 		writeError(w, 400, "bad id")
 		return
+	}
+	if u, errU := a.currentUser(r); errU == nil {
+		ok, e := a.store.CanAccessBoard(r.Context(), u.ID, id)
+		if e != nil {
+			a.log.Error("access check", "err", e)
+		}
+		if !ok {
+			writeError(w, 403, "forbidden")
+			return
+		}
 	}
 	a.bus.ServeSSE(w, r, id)
 }
@@ -899,6 +1712,17 @@ func (a *api) handleGetBoardFull(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, 400, "bad id")
 		return
+	}
+	// Gate by access
+	if u, errU := a.currentUser(r); errU == nil {
+		ok, e := a.store.CanAccessBoard(r.Context(), u.ID, id)
+		if e != nil {
+			a.log.Error("access check", "err", e)
+		}
+		if !ok {
+			writeError(w, 403, "forbidden")
+			return
+		}
 	}
 	board, err := a.store.GetBoard(r.Context(), id)
 	if err != nil {

@@ -9,7 +9,12 @@
 <body>
   <div id="app">
     <aside class="sidebar">
-  <h1>Trellolite <button id="btnTheme" class="btn icon" title="Переключить тему" aria-label="Переключить тему"><svg aria-hidden="true"><use href="#i-auto"></use></svg></button></h1>
+  <h1>
+    <button id="btnSidebarToggle" class="btn icon" title="Свернуть панель" aria-label="Свернуть панель"><svg aria-hidden="true"><use href="#i-menu"></use></svg></button>
+    <span class="logo-text">Trellolite</span>
+    <span class="spacer"></span>
+    <button id="btnTheme" class="btn icon" title="Переключить тему" aria-label="Переключить тему"><svg aria-hidden="true"><use href="#i-auto"></use></svg></button>
+  </h1>
       <div class="userbar" id="userBar" hidden>
         <div id="userAvatar" class="avatar" aria-hidden="true">U</div>
         <div class="userinfo">
@@ -21,17 +26,40 @@
       </div>
       <div class="boards-header">
         <span>Доски</span>
-        <button id="btnNewBoard" class="btn">+</button>
+        <div class="scope-toggle" role="group" aria-label="Фильтр досок">
+          <button id="scopeMine" class="btn toggle" aria-pressed="true" title="Показать мои доски" aria-label="Мои">
+            <svg aria-hidden="true"><use href="#i-user"></use></svg>
+            <span class="lbl">Мои</span>
+          </button>
+          <button id="scopeGroups" class="btn toggle" aria-pressed="true" title="Показать доски из групп" aria-label="Группы">
+            <svg aria-hidden="true"><use href="#i-users"></use></svg>
+            <span class="lbl">Группы</span>
+          </button>
+        </div>
+        <div class="spacer"></div>
+        <button id="btnNewBoard" class="btn icon" title="Новая доска" aria-label="Новая доска"><svg aria-hidden="true"><use href="#i-plus"></use></svg></button>
       </div>
   <ul id="boards" class="boards"></ul>
+      <div class="sidebar-footer">
+        <button id="btnGroupsPanel" class="btn" title="Управление группами">Группы…</button>
+      </div>
     </aside>
     <main class="main">
       <div id="boardHeader" class="board-header">
         <h2 id="boardTitle"></h2>
         <div class="spacer"></div>
-  <button id="btnRenameBoard" class="btn">Переименовать</button>
-  <button id="btnDeleteBoard" class="btn">Удалить доску</button>
-        <button id="btnNewList" class="btn">Новый список</button>
+        <button id="btnBoardGroups" class="btn icon" title="Доступ к доске для групп" aria-label="Доступ">
+          <svg aria-hidden="true"><use href="#i-users"></use></svg>
+        </button>
+        <button id="btnRenameBoard" class="btn icon" title="Переименовать доску" aria-label="Переименовать">
+          <svg aria-hidden="true"><use href="#i-edit"></use></svg>
+        </button>
+        <button id="btnDeleteBoard" class="btn icon" title="Удалить доску" aria-label="Удалить">
+          <svg aria-hidden="true"><use href="#i-trash"></use></svg>
+        </button>
+        <button id="btnNewList" class="btn icon" title="Новый список" aria-label="Новый список">
+          <svg aria-hidden="true"><use href="#i-plus"></use></svg>
+        </button>
       </div>
       <div id="lists" class="lists"></div>
     </main>
@@ -43,9 +71,15 @@
       <label>Название
         <input name="title" required maxlength="200">
       </label>
+      <label>Проект
+        <div class="row">
+          <select id="projectSelect" name="project_id"></select>
+          <button id="btnNewProject" type="button" class="btn">Новый проект…</button>
+        </div>
+      </label>
       <menu>
-  <button type="button" value="cancel" formnovalidate>Отмена</button>
-        <button value="ok" class="primary">Создать</button>
+  <button type="button" value="cancel" class="btn" formnovalidate>Отмена</button>
+  <button value="ok" class="btn primary">Создать</button>
       </menu>
     </form>
   </dialog>
@@ -57,8 +91,8 @@
         <input name="title" required maxlength="200">
       </label>
       <menu>
-  <button type="button" value="cancel" formnovalidate>Отмена</button>
-        <button value="ok" class="primary">Создать</button>
+  <button type="button" value="cancel" class="btn" formnovalidate>Отмена</button>
+  <button value="ok" class="btn primary">Создать</button>
       </menu>
     </form>
   </dialog>
@@ -141,8 +175,8 @@
       <h3>Подтверждение</h3>
       <p id="confirmMessage">Вы уверены?</p>
       <menu>
-        <button id="btnConfirmCancel" value="cancel">Отмена</button>
-        <button id="btnConfirmOk" value="ok" class="primary">Продолжить</button>
+  <button id="btnConfirmCancel" class="btn" value="cancel">Отмена</button>
+  <button id="btnConfirmOk" class="btn primary" value="ok">Продолжить</button>
       </menu>
     </form>
   </dialog>
@@ -175,6 +209,39 @@
     </form>
   </dialog>
 
+  <dialog id="dlgGroups">
+    <form id="formGroups" method="dialog">
+      <h3>Доступ доски для групп</h3>
+      <div id="groupsList" class="groups-list"></div>
+      <menu>
+        <button type="button" value="cancel" class="btn">Отмена</button>
+        <button value="ok" class="btn primary">Сохранить</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlgMembers">
+    <form id="formMembers" method="dialog">
+      <h3>Участники группы</h3>
+  <div class="field"><input id="userSearch" placeholder="Поиск пользователя по email/имени"></div>
+  <div id="membersStatus"></div>
+      <div id="membersList" class="groups-list"></div>
+      <menu>
+        <button value="cancel" class="btn">Закрыть</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlgGroupsPanel">
+    <form id="formGroupsPanel" method="dialog">
+      <h3>Группы</h3>
+      <div id="groupsPanelList" class="groups-list"></div>
+      <menu>
+        <button type="button" value="cancel" class="btn">Закрыть</button>
+      </menu>
+    </form>
+  </dialog>
+
   <dialog id="dlgColor">
     <form id="formColor" method="dialog">
       <h3>Цвет</h3>
@@ -193,8 +260,8 @@
         <input id="colorCustom" type="color" value="#3b82f6">
       </label>
       <menu>
-        <button type="button" value="clear">Сбросить</button>
-        <button value="ok" class="primary">Применить</button>
+  <button type="button" value="clear" class="btn">Сбросить</button>
+  <button value="ok" class="btn primary">Применить</button>
       </menu>
     </form>
   </dialog>
@@ -224,6 +291,29 @@
     </symbol>
     <symbol id="i-palette" viewBox="0 0 24 24" fill="currentColor">
       <path d="M12 2a10 10 0 1 0 0 20h.5a2.5 2.5 0 0 0 0-5H11a1 1 0 0 1-1-1 3 3 0 0 1 3-3h2a5 5 0 0 0 0-10H12Zm-5 9a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm4-4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm6 2a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm-2 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/>
+    </symbol>
+    <!-- New icons -->
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M11 11V5a1 1 0 1 1 2 0v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6Z"/>
+    </symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25Zm18.71-11.04a1.003 1.003 0 0 0 0-1.42l-2.5-2.5a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.99-1.66Z"/>
+    </symbol>
+    <symbol id="i-user" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.42 0-8 2.24-8 5v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-2.76-3.58-5-8-5Z"/>
+    </symbol>
+    <symbol id="i-users" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-8 3a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm8 2c-3.31 0-6 1.79-6 4v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1c0-2.21-2.69-4-6-4Zm-8 0c-3.31 0-6 1.79-6 4v1a1 1 0 0 0 1 1h6v-1c0-1.52.84-2.86 2.19-3.83A9.26 9.26 0 0 0 8 16Z"/>
+    </symbol>
+    <!-- Collapse/Expand chevrons and menu icon -->
+    <symbol id="i-menu" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M4 6h16v2H4zM4 11h16v2H4zM4 16h16v2H4z"/>
+    </symbol>
+    <symbol id="i-chevr-left" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12l4.58-4.59Z"/>
+    </symbol>
+    <symbol id="i-chevr-right" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M8.59 16.59 10 18l6-6-6-6-1.41 1.41L13.17 12l-4.58 4.59Z"/>
     </symbol>
   </svg>
 
