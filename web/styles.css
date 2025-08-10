@@ -146,12 +146,69 @@ dialog menu{display:flex; justify-content:flex-end; gap:8px; margin-top:12px}
 /* confirm dialog specific (inherits dialog base styles) */
 #dlgConfirm p{margin:8px 0 0 0}
 
-/* Card view dialog tweaks */
-#dlgCardView{width:480px}
-#dlgCardView .dialog-body{min-width:auto; max-width:none}
+/* Card view & create dialog: стабильная ширина, без рывков; контент прокручивается */
+#dlgCardView, #dlgCard{ width:min(900px, calc(100vw - 32px)); min-width:480px; }
+#dlgCardView .dialog-body, #dlgCard .dialog-body{
+  max-width:100%;
+  max-height: calc(100vh - 180px);
+  overflow:auto;
+}
+/* Let description textareas resize horizontally too and drive dialog width */
+#cvDescription,
+#formCard textarea[name="description"]{
+  width:100%;
+  min-width:0;
+  max-width:100%;
+  resize:both;
+  max-height: calc(100vh - 260px);
+  overflow: auto;
+}
+/* Make preview behave like textarea in layout */
+.md-preview{
+  display:block;
+  width:100%;
+  max-height: calc(100vh - 260px);
+  overflow:auto;
+}
 /* Force consistent stacked labels in both dialogs */
 #dlgCard .dialog-body > label,
 #dlgCardView .dialog-body > label{display:flex; flex-direction:column}
+
+/* Markdown preview styling (theme-aware) */
+.md-preview {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--card);
+  color: var(--ink);
+  max-width: calc(100vw - 64px);
+}
+.md-preview p { margin: 0.5em 0; }
+.md-preview ul, .md-preview ol { margin: 0.45em 0 0.45em 1.25em; }
+.md-preview li { margin: 0.2em 0; }
+.md-preview a { color: var(--accent); text-decoration: none; }
+.md-preview a:hover { text-decoration: underline; }
+.md-preview strong { font-weight: 600; }
+.md-preview em { font-style: italic; }
+.md-preview code { background: rgba(0,0,0,0.12); padding: 0.12em 0.35em; border-radius: 6px; }
+html[data-theme="dark"] .md-preview code { background: rgba(255,255,255,0.1); }
+.md-preview pre {
+  background: color-mix(in srgb, var(--card) 92%, #000 8%);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  overflow:auto;
+}
+.md-preview pre code{ background: transparent; padding:0; border-radius:0 }
+.md-preview h1,.md-preview h2,.md-preview h3{ margin: .6em 0 .35em; font-weight:700 }
+.md-preview h4,.md-preview h5,.md-preview h6{ margin: .5em 0 .3em; font-weight:600 }
+.md-preview blockquote{
+  margin: .5em 0;
+  padding: .1em .9em;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 60%, var(--border));
+  color: var(--muted);
+}
+.md-preview hr{ border:none; border-top:1px solid var(--border); margin:.7em 0 }
 #dlgCardView section{margin-top:12px}
 #dlgCardView h4{margin:0 0 6px 0}
 #cvComments{display:flex; flex-direction:column; gap:6px; padding:0}

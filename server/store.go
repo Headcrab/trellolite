@@ -289,7 +289,8 @@ func (s *Store) DeleteList(ctx context.Context, id int64) error {
 
 func (s *Store) CardsByList(ctx context.Context, listID int64) ([]Card, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`select id, list_id, title, description, coalesce(color,''), pos, due_at, created_at from cards where list_id=$1 order by pos, id`, listID)
+		`select id, list_id, title, description, coalesce(color,''), pos, due_at, created_at, coalesce(description_is_md,false)
+	 from cards where list_id=$1 order by pos, id`, listID)
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +298,7 @@ func (s *Store) CardsByList(ctx context.Context, listID int64) ([]Card, error) {
 	var out []Card
 	for rows.Next() {
 		var c Card
-		if err := rows.Scan(&c.ID, &c.ListID, &c.Title, &c.Description, &c.Color, &c.Pos, &c.DueAt, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.ListID, &c.Title, &c.Description, &c.Color, &c.Pos, &c.DueAt, &c.CreatedAt, &c.DescriptionIsMD); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -305,15 +306,15 @@ func (s *Store) CardsByList(ctx context.Context, listID int64) ([]Card, error) {
 	return out, rows.Err()
 }
 
-func (s *Store) CreateCard(ctx context.Context, listID int64, title, description string) (Card, error) {
+func (s *Store) CreateCard(ctx context.Context, listID int64, title, description string, isMD bool) (Card, error) {
 	var next int64 = 1000
 	_ = s.db.QueryRowContext(ctx, `select coalesce(max(pos),0)+1000 from cards where list_id=$1`, listID).Scan(&next)
 	var c Card
 	err := s.db.QueryRowContext(ctx,
-		`insert into cards(list_id, title, description, pos) values($1,$2,$3,$4)
-		 returning id, list_id, title, description, coalesce(color,''), pos, due_at, created_at`,
-		listID, title, description, next).
-		Scan(&c.ID, &c.ListID, &c.Title, &c.Description, &c.Color, &c.Pos, &c.DueAt, &c.CreatedAt)
+		`insert into cards(list_id, title, description, pos, description_is_md) values($1,$2,$3,$4,$5)
+	 returning id, list_id, title, description, coalesce(color,''), pos, due_at, created_at, coalesce(description_is_md,false)`,
+		listID, title, description, next, isMD).
+		Scan(&c.ID, &c.ListID, &c.Title, &c.Description, &c.Color, &c.Pos, &c.DueAt, &c.CreatedAt, &c.DescriptionIsMD)
 	return c, err
 }
 
@@ -757,7 +758,7 @@ func (s *Store) EnsureOAuthUser(ctx context.Context, provider, providerUserID, e
 	return u, nil
 }
 
-func (s *Store) UpdateCard(ctx context.Context, id int64, title *string, description *string, pos *int64, dueAt *time.Time) error {
+func (s *Store) UpdateCard(ctx context.Context, id int64, title *string, description *string, pos *int64, dueAt *time.Time, descriptionIsMD *bool) error {
 	q := "update cards set "
 	args := []any{}
 	idx := 1
@@ -780,6 +781,11 @@ func (s *Store) UpdateCard(ctx context.Context, id int64, title *string, descrip
 	if dueAt != nil {
 		set = append(set, fmt.Sprintf("due_at=$%d", idx))
 		args = append(args, *dueAt)
+		idx++
+	}
+	if descriptionIsMD != nil {
+		set = append(set, fmt.Sprintf("description_is_md=$%d", idx))
+		args = append(args, *descriptionIsMD)
 		idx++
 	}
 	if len(set) == 0 {
@@ -1208,6 +1214,7 @@ create table if not exists cards(
     created_at timestamptz not null default now()
 );
 alter table cards add column if not exists color text;
+alter table cards add column if not exists description_is_md boolean not null default false;
 -- upcoming: assignee for cards
 alter table cards add column if not exists assignee_user_id bigint;
 create index if not exists cards_list_idx on cards(list_id);

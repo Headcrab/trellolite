@@ -14,6 +14,7 @@ const api = {
   async createList(bid, title){ return fetchJSON(`/api/boards/${bid}/lists`, {method:'POST', body:{title}}) },
   async getCards(lid){ return fetchJSON(`/api/lists/${lid}/cards`) },
   async createCard(lid, title, description){ return fetchJSON(`/api/lists/${lid}/cards`, {method:'POST', body:{title, description}}) },
+  async createCardAdvanced(lid, payload){ return fetchJSON(`/api/lists/${lid}/cards`, {method:'POST', body: payload}) },
   async moveCard(id, targetListId, newIndex){ return fetchJSON(`/api/cards/${id}/move`, {method:'POST', body:{target_list_id: targetListId, new_index: newIndex}}) },
   async updateList(id, payload){ return fetchJSON(`/api/lists/${id}`, {method:'PATCH', body:payload}) },
   async moveList(id, newIndex, targetBoardId){ return fetchJSON(`/api/lists/${id}/move`, {method:'POST', body:{new_index: newIndex, target_board_id: targetBoardId||0}}) },
@@ -260,11 +261,12 @@ function bindUI(){
     const fd = new FormData(els.formCard);
     const title = fd.get('title').trim();
     const description = (fd.get('description')||'').trim();
+    const description_is_md = !!els.formCard.querySelector('[name="description_is_md"]')?.checked;
     const due_at = (els.dueAtCreate && els.dueAtCreate.dataset.iso) ? els.dueAtCreate.dataset.iso : '';
     const listId = parseInt(els.formCard.dataset.listId, 10);
     if(!title || !listId) return;
     try {
-      const c = await api.createCard(listId, title, description);
+      const c = await api.createCardAdvanced(listId, { title, description, description_is_md });
       if(due_at){ try { await api.updateCardFields(c.id, { due_at }); c.due_at = due_at; } catch{} }
       if(!state.cards.has(listId)) state.cards.set(listId, []);
       const arr = state.cards.get(listId);
@@ -353,12 +355,16 @@ function bindUI(){
     const payload = {};
     const title = els.cvTitle.value.trim(); if(title && title !== c.title) payload.title = title;
     const description = els.cvDescription.value.trim(); if(description !== c.description) payload.description = description;
+  const isMdToggle = document.getElementById('cvMdToggle');
+  if(isMdToggle){ const md = isMdToggle.getAttribute('aria-pressed') === 'true'; if(typeof c.description_is_md === 'boolean'){ if(md !== !!c.description_is_md) payload.description_is_md = md; } else { payload.description_is_md = md; } }
   const dueVal = els.cvDueAt.dataset.iso || '';
   if(dueVal) payload.due_at = dueVal; else if(c.due_at) payload.due_at = '';
     if(Object.keys(payload).length===0){ els.dlgCardView.close(); return; }
     try { await api.updateCardFields(c.id, payload); els.dlgCardView.close(); renderBoard(state.currentBoardId); }
     catch(err){ alert('Не удалось сохранить карточку: ' + err.message); }
   });
+  // Live preview on typing
+  if(els.cvDescription){ els.cvDescription.addEventListener('input', () => { renderCvDescriptionPreview(state.currentCard||{}); }); }
   els.btnAddComment.addEventListener('click', async () => {
     const c = state.currentCard; if(!c) return;
     const body = els.cvCommentText.value.trim(); if(!body) return;
@@ -800,7 +806,7 @@ async function duplicateCard(cardId, listId){
   const src = arr.find(x => x.id === cardId);
   if(!src) return;
   try {
-    const created = await api.createCard(listId, src.title || '', src.description || '');
+  const created = await api.createCardAdvanced(listId, { title: src.title || '', description: src.description || '', description_is_md: !!src.description_is_md });
     const payload = {};
     if(src.due_at) payload.due_at = src.due_at;
     if(src.color) payload.color = src.color;
@@ -1154,6 +1160,11 @@ async function openCard(c){
   state.currentCard = c;
   els.cvTitle.value = c.title || '';
   els.cvDescription.value = c.description || '';
+  applyMdToggle(c);
+  // Ensure UI reflects initial toggle state
+  const btn = document.getElementById('cvMdToggle');
+  if(btn){ btn.setAttribute('aria-pressed', String(!!c.description_is_md)); }
+  renderCvDescriptionPreview(c);
   if(c.due_at){ const {text, iso} = toLocalTextAndISO(c.due_at); els.cvDueAt.value = text; els.cvDueAt.dataset.iso = iso; }
   else { els.cvDueAt.value=''; delete els.cvDueAt.dataset.iso; }
   // Открываем диалог сразу, чтобы сбой загрузки комментариев не блокировал редактирование
@@ -1165,6 +1176,148 @@ async function openCard(c){
     // Тихо игнорируем ошибку, чтобы пользователь мог редактировать поля
     console.warn('Не удалось загрузить комментарии:', err);
   }
+}
+
+function applyMdToggle(c){
+  // Create or update a toggle button next to description label
+  const wrap = els.cvDescription.closest('label'); if(!wrap) return;
+  let btn = document.getElementById('cvMdToggle');
+  if(!btn){
+    btn = document.createElement('button');
+    btn.id = 'cvMdToggle'; btn.type = 'button'; btn.className = 'btn icon';
+    btn.title = 'Markdown'; btn.setAttribute('aria-label','Markdown');
+    btn.innerHTML = '<svg aria-hidden="true"><use href="#i-markdown"></use></svg>';
+    wrap.appendChild(btn);
+    btn.addEventListener('click', () => {
+      const cur = btn.getAttribute('aria-pressed')==='true';
+      btn.setAttribute('aria-pressed', String(!cur));
+      renderCvDescriptionPreview(state.currentCard || c);
+    });
+  }
+  btn.setAttribute('aria-pressed', String(!!c.description_is_md));
+}
+
+function renderCvDescriptionPreview(c){
+  // Render markdown preview if toggle is on
+  const btn = document.getElementById('cvMdToggle');
+  const on = btn && btn.getAttribute('aria-pressed')==='true';
+  // Ensure preview container exists
+  let prev = document.getElementById('cvDescriptionPreview');
+  if(!prev){ prev = document.createElement('div'); prev.id = 'cvDescriptionPreview'; prev.className='md-preview'; els.cvDescription.parentElement.appendChild(prev); }
+  prev.hidden = !on;
+  prev.style.display = on ? '' : 'none';
+  els.cvDescription.style.display = on ? 'none' : '';
+  if(on){ prev.innerHTML = renderMarkdownSafe(els.cvDescription.value || ''); }
+}
+
+function renderMarkdownSafe(src){
+  // Basic Markdown renderer: safe HTML escaping, supports headings, paragraphs, lists, blockquotes,
+  // inline code, bold/italic, links, and fenced code blocks. Not full CommonMark but practical.
+  const escape = (t) => (t||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const inline = (t) => {
+    const codeSlots = [];
+    let s = (t||'');
+    // Extract code spans to placeholders so we don't alter inside
+    s = s.replace(/`([^`]+)`/g, (m, g1) => {
+      const idx = codeSlots.push(escape(g1)) - 1;
+      return `\u0001CODE${idx}\u0002`;
+    });
+    // Escape the rest
+    s = escape(s);
+    // Links [text](http...)
+    s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (m, txt, url) => '<a href="'+url+'" target="_blank" rel="noopener noreferrer">'+txt+'</a>');
+    // Bold (strong) then italic (em): only * delimiters (not _)
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*])\*([^*]+?)\*(?=[^*]|$)/g, '$1<em>$2</em>');
+    // Restore code spans
+    s = s.replace(/\u0001CODE(\d+)\u0002/g, (m, n) => `<code>${codeSlots[Number(n)]||''}</code>`);
+    return s;
+  };
+
+  const lines = (src||'').replace(/\r\n?/g,'\n').split('\n');
+  let out = [];
+  let i = 0, inCode = false, codeBuf = [], codeLang = '';
+  let listType = null, listBuf = [];
+  let bqBuf = [];
+
+  const flushList = () => {
+    if(!listType) return;
+    const tag = listType === 'ol' ? 'ol' : 'ul';
+    out.push('<'+tag+'>'+listBuf.join('')+'</'+tag+'>');
+    listType = null; listBuf = [];
+  };
+  const flushBlockquote = () => {
+    if(!bqBuf.length) return;
+    const html = bqBuf.map(p => '<p>'+inline(escape(p))+'</p>').join('');
+    out.push('<blockquote>'+html+'</blockquote>');
+    bqBuf = [];
+  };
+  const flushParagraph = (buf) => {
+    if(!buf.length) return;
+    out.push('<p>'+inline(escape(buf.join(' ')))+'</p>');
+  };
+
+  while(i < lines.length){
+    const line = lines[i];
+    // Fenced code blocks
+    const fence = line.match(/^\s*```\s*([\w-]*)\s*$/);
+    if(fence){
+      if(!inCode){ inCode = true; codeLang = fence[1]||''; codeBuf = []; i++; continue; }
+      // closing fence
+      out.push('<pre><code'+(codeLang?(' class="lang-'+codeLang+'"'):'')+'>'+escape(codeBuf.join('\n'))+'</code></pre>');
+      inCode = false; codeBuf = []; codeLang=''; i++; continue;
+    }
+    if(inCode){ codeBuf.push(line); i++; continue; }
+
+    // Horizontal rule
+    if(/^\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)){ flushList(); flushBlockquote(); out.push('<hr>'); i++; continue; }
+
+    // Headings
+    const h = line.match(/^\s{0,3}(#{1,6})\s+(.+)$/);
+  if(h){ flushList(); flushBlockquote(); const lvl = h[1].length; out.push('<h'+lvl+'>'+inline(h[2].trim())+'</h'+lvl+'>'); i++; continue; }
+
+    // Blockquote
+    const bq = line.match(/^\s*>\s?(.*)$/);
+    if(bq){ flushList(); bqBuf.push(bq[1]); i++; // accumulate
+      // lookahead to collapse consecutive > lines
+      while(i<lines.length && /^\s*>\s?/.test(lines[i])){ bqBuf.push(lines[i].replace(/^\s*>\s?/,'')); i++; }
+      flushBlockquote();
+      continue;
+    }
+
+    // Lists
+    let m;
+    if((m = line.match(/^\s*[-*]\s+(.+)$/))){
+  if(listType !== 'ul'){ flushList(); listType = 'ul'; }
+  listBuf.push('<li>'+inline(m[1])+'</li>'); i++;
+      // absorb following list items of same kind
+      while(i<lines.length){
+        const m2 = lines[i].match(/^\s*[-*]\s+(.+)$/);
+        if(!m2) break; listBuf.push('<li>'+inline(escape(m2[1]))+'</li>'); i++;
+      }
+      continue;
+    }
+    if((m = line.match(/^\s*\d+[\.)]\s+(.+)$/))){
+  if(listType !== 'ol'){ flushList(); listType = 'ol'; }
+  listBuf.push('<li>'+inline(m[1])+'</li>'); i++;
+      while(i<lines.length){
+        const m2 = lines[i].match(/^\s*\d+[\.)]\s+(.+)$/);
+        if(!m2) break; listBuf.push('<li>'+inline(escape(m2[1]))+'</li>'); i++;
+      }
+      continue;
+    }
+
+    // Blank line separates paragraphs
+    if(/^\s*$/.test(line)){ flushList(); flushBlockquote(); i++; continue; }
+
+    // Paragraph (collect until blank line)
+    const pbuf = [line.trim()]; i++;
+    while(i<lines.length && !/^\s*$/.test(lines[i])){ pbuf.push(lines[i].trim()); i++; }
+  flushList(); flushBlockquote(); flushParagraph(pbuf);
+  }
+  // flush leftovers
+  flushList(); flushBlockquote();
+  return out.join('\n');
 }
 
 async function loadComments(cardId){

@@ -25,14 +25,15 @@ type List struct {
 }
 
 type Card struct {
-	ID          int64      `json:"id"`
-	ListID      int64      `json:"list_id"`
-	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	Color       string     `json:"color,omitempty"`
-	Pos         int64      `json:"pos"`
-	DueAt       *time.Time `json:"due_at,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
+	ID              int64      `json:"id"`
+	ListID          int64      `json:"list_id"`
+	Title           string     `json:"title"`
+	Description     string     `json:"description"`
+	DescriptionIsMD bool       `json:"description_is_md"`
+	Color           string     `json:"color,omitempty"`
+	Pos             int64      `json:"pos"`
+	DueAt           *time.Time `json:"due_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 type Comment struct {
