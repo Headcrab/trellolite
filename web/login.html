@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Вход — Trellolite</title>
+  <link rel="stylesheet" href="/web/styles.css" />
+  <link rel="stylesheet" href="/web/auth.css" />
+</head>
+<body>
+  <main class="auth-page">
+    <section class="auth-card" role="form" aria-labelledby="loginTitle">
+      <h1 id="loginTitle">Вход</h1>
+      <p class="sub">Добро пожаловать! Введите email и пароль, чтобы продолжить.</p>
+
+      <div id="error" class="error" aria-live="polite" aria-hidden="true"></div>
+
+      <form id="form" novalidate>
+        <div class="field">
+          <label for="email">Email</label>
+          <div class="input-wrap">
+            <input class="input" id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required autofocus />
+          </div>
+        </div>
+        <div class="field">
+          <label for="password">Пароль</label>
+          <div class="input-wrap">
+            <input class="input" id="password" name="password" type="password" autocomplete="current-password" minlength="6" placeholder="••••••••" required />
+            <button type="button" id="togglePass" class="toggle-pass" aria-pressed="false" aria-label="Показать пароль">Показать</button>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="btnLogin" type="submit">Войти</button>
+          <a class="btn" href="/web/register.html" role="button" aria-label="Перейти к регистрации">Регистрация</a>
+        </div>
+        <div class="oauth" id="oauthBox" hidden>
+          <button type="button" class="btn" id="btnGithub">Войти через GitHub</button>
+        </div>
+        <div class="helper small">
+          <span>Нет аккаунта? Зарегистрируйтесь.</span>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    const qs = (s) => document.querySelector(s);
+    const errorBox = qs('#error');
+    function showError(msg){ errorBox.textContent = msg; errorBox.setAttribute('aria-hidden','false'); }
+    function clearError(){ errorBox.textContent = ''; errorBox.setAttribute('aria-hidden','true'); }
+    function emailValid(v){ return /.+@.+\..+/.test(v); }
+
+    async function ensureNotLoggedIn(){
+      try {
+        const r = await fetch('/api/auth/me', { credentials:'include' });
+        if (r.ok) {
+          const data = await r.json().catch(()=>null);
+          if (data && data.user) { location.replace('/'); }
+        }
+      } catch {}
+    }
+
+    function togglePassword(){
+      const inp = qs('#password');
+      const btn = qs('#togglePass');
+      const show = inp.type === 'password';
+      inp.type = show ? 'text' : 'password';
+      btn.setAttribute('aria-pressed', String(show));
+      btn.textContent = show ? 'Скрыть' : 'Показать';
+    }
+
+    async function onSubmit(e){
+      e.preventDefault();
+      clearError();
+      const email = qs('#email').value.trim();
+      const password = qs('#password').value;
+      if (!emailValid(email)) return showError('Укажите корректный email.');
+      if (!password || password.length < 6) return showError('Пароль должен быть не короче 6 символов.');
+
+      const btn = qs('#btnLogin');
+      const prev = btn.textContent;
+      btn.textContent = 'Входим…';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/auth/login', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          credentials:'include',
+          body: JSON.stringify({ email, password })
+        });
+        if (!res.ok){
+          let msg = 'Ошибка входа';
+          try { const data = await res.json(); if (data && data.error) msg = data.error; } catch {}
+          throw new Error(msg);
+        }
+        location.replace('/');
+      } catch (err){
+        showError(err.message || 'Ошибка сети');
+      } finally {
+        btn.disabled = false; btn.textContent = prev;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      ensureNotLoggedIn();
+      qs('#form').addEventListener('submit', onSubmit);
+      qs('#togglePass').addEventListener('click', togglePassword);
+      // Discover providers
+      fetch('/api/auth/providers').then(r=>r.json()).then(data=>{
+        if(data && Array.isArray(data.providers)){
+          const hasGithub = data.providers.some(p=>p.id==='github');
+          if(hasGithub){
+            const box = qs('#oauthBox'); box.hidden = false;
+            qs('#btnGithub').addEventListener('click', ()=>{ location.href = '/api/auth/oauth/github/start'; });
+          }
+        }
+      }).catch(()=>{});
+    });
+  </script>
+</body>
+</html>

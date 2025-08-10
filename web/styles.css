@@ -27,6 +27,11 @@ body{margin:0; font:14px/1.5 system-ui,Segoe UI,Roboto,Ubuntu,Arial; background:
 .sidebar h1{margin:0 0 12px 0; font-size:20px; font-weight:700; display:flex; align-items:center; gap:8px}
 .boards-header{display:flex; align-items:center; gap:8px; margin-bottom:8px}
 .boards-header .btn{margin-left:auto}
+.userbar{display:flex; align-items:center; gap:10px; padding:10px; border:1px solid var(--border); border-radius:12px; background:var(--panel); margin-bottom:10px}
+.userbar .avatar{width:32px; height:32px; border-radius:50%; background:color-mix(in srgb, var(--accent) 20%, var(--panel)); display:flex; align-items:center; justify-content:center; font-weight:700}
+.userbar .userinfo{display:flex; flex-direction:column; min-width:0}
+.userbar .uname{font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.userbar .uemail{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .btn{background:var(--panel); border:1px solid var(--border); color:var(--ink); padding:8px 12px; border-radius:10px; cursor:pointer; transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .02s}
 .btn:hover{background:var(--hover)}
 .btn:active{transform:translateY(1px)}

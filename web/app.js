@@ -1,4 +1,6 @@
 const api = {
+  async me(){ return fetchJSON('/api/auth/me'); },
+  async logout(){ return fetchJSON('/api/auth/logout', {method:'POST'}) },
   async getBoards(){ return fetchJSON('/api/boards') },
   async createBoard(title){ return fetchJSON('/api/boards', {method:'POST', body:{title}}) },
   async getBoard(id){ return fetchJSON('/api/boards/'+id) },
@@ -29,6 +31,14 @@ async function fetchJSON(url, opts={}){
   if(!res.ok){
     let msg = res.statusText;
     try { const j = await res.json(); if(j && j.error) msg = j.error } catch{}
+    if(res.status === 401){
+      // redirect to login page only for non-GET (mutation) requests
+      const method = (init.method||'GET').toUpperCase();
+      if(method !== 'GET' && !location.pathname.endsWith('/web/login.html')){
+        location.href = '/web/login.html';
+        return Promise.reject(new Error('unauthorized'));
+      }
+    }
     throw new Error(msg);
   }
   if(res.status === 204) return null;
@@ -38,7 +48,7 @@ async function fetchJSON(url, opts={}){
   try { return JSON.parse(text); } catch { return null; }
 }
 
-const state = { boards: [], currentBoardId: null, lists: [], cards: new Map(), currentCard: null, dragListCrossDrop: false };
+const state = { boards: [], currentBoardId: null, lists: [], cards: new Map(), currentCard: null, dragListCrossDrop: false, user: null };
 const el = (id) => document.getElementById(id);
 const els = { boards: el('boards'), boardTitle: el('boardTitle'), lists: el('lists'),
   dlgBoard: el('dlgBoard'), formBoard: el('formBoard'), dlgList: el('dlgList'),
@@ -113,11 +123,17 @@ async function init(){
     });
   }
 
+  // Try to fetch current user; if not authorized, leave user null
+  try {
+    const me = await api.me(); state.user = me && me.user ? me.user : null; updateUserBar();
+  } catch { state.user = null; updateUserBar(); }
   await refreshBoards(); bindUI(); setupContextMenu();
   if(state.boards.length) openBoard(state.boards[0].id);
 }
 
 function bindUI(){
+  const btnLogout = document.getElementById('btnLogout');
+  if(btnLogout){ btnLogout.addEventListener('click', async () => { try { await api.logout(); location.href = '/web/login.html'; } catch(e){ alert('Не удалось выйти: '+e.message); } }); }
   els.btnNewBoard.addEventListener('click', () => { els.formBoard.reset(); els.dlgBoard.returnValue=''; els.dlgBoard.showModal(); });
   els.dlgBoard.addEventListener('close', async () => {
     if(els.dlgBoard.returnValue === 'ok'){
@@ -231,6 +247,20 @@ function bindUI(){
   };
   bindDtInput(els.dueAtCreate);
   bindDtInput(els.cvDueAt);
+}
+
+function updateUserBar(){
+  const bar = document.getElementById('userBar'); if(!bar) return;
+  if(!state.user){ bar.hidden = true; return; }
+  const nameEl = document.getElementById('userName');
+  const emailEl = document.getElementById('userEmail');
+  const avEl = document.getElementById('userAvatar');
+  const name = state.user.name || state.user.email || '';
+  const email = state.user.email || '';
+  nameEl.textContent = name; emailEl.textContent = email;
+  const letter = (name || email).trim().charAt(0).toUpperCase() || 'U';
+  avEl.textContent = letter;
+  bar.hidden = false;
 }
 
 // ---- Context menu ----

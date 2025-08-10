@@ -1,0 +1,23 @@
+:root{ --auth-card-w: 380px }
+.auth-page{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px }
+.auth-card{ background: var(--panel); color: var(--ink); padding: 24px; border-radius: 14px; box-shadow: 0 8px 28px rgba(2,6,23,.16), 0 2px 8px rgba(2,6,23,.08); width: min(92vw, var(--auth-card-w)); border:1px solid var(--border) }
+.auth-card h1{ margin:0 0 6px; font-size: 20px }
+.auth-card p.sub{ margin:0 0 14px; color: var(--muted); font-size: 13px }
+.field{ margin: 12px 0 }
+.field label{ display:block; margin-bottom:6px; font-size: 12px; color: var(--muted) }
+.input-wrap{ position: relative }
+.input{ width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--panel); color:inherit }
+.input:focus{ outline:none; border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent) }
+.toggle-pass{ position:absolute; right:8px; top:50%; transform:translateY(-50%); border:none; background:transparent; color:var(--muted); cursor:pointer }
+.actions{ display:flex; gap:8px; margin-top:16px }
+.actions .btn{ flex:1 }
+.btn{ background:var(--panel); border:1px solid var(--border); color:var(--ink); padding:10px 12px; border-radius:10px; cursor:pointer }
+.btn.primary{ background: var(--accent); border-color: var(--accent); color: var(--accent-ink) }
+.btn:disabled{ opacity:.7; cursor:not-allowed }
+.helper{ display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:12px }
+.error{ background: #fee2e2; color:#991b1b; border:1px solid #fecaca; padding:8px 10px; border-radius:10px; font-size:13px; display:none }
+.error[aria-hidden="false"]{ display:block }
+.oauth{ margin-top:12px; display:flex; gap:8px }
+.oauth .btn{ flex:1 }
+.small{ font-size:12px; color: var(--muted) }
+.avatar-preview{ width:32px; height:32px; border-radius:50%; display:none }

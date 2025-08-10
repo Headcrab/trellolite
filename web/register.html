@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Регистрация — Trellolite</title>
+  <link rel="stylesheet" href="/web/styles.css" />
+  <link rel="stylesheet" href="/web/auth.css" />
+</head>
+<body>
+  <main class="auth-page">
+    <section class="auth-card" role="form" aria-labelledby="regTitle">
+      <h1 id="regTitle">Регистрация</h1>
+      <p class="sub">Создайте аккаунт, чтобы сохранять ваши доски и работать совместно.</p>
+
+      <div id="error" class="error" aria-live="polite" aria-hidden="true"></div>
+
+      <form id="form" novalidate>
+        <div class="field">
+          <label for="name">Имя</label>
+          <div class="input-wrap">
+            <input class="input" id="name" name="name" type="text" autocomplete="name" placeholder="Иван Иванов" required autofocus />
+          </div>
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <div class="input-wrap">
+            <input class="input" id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required />
+          </div>
+        </div>
+        <div class="field">
+          <label for="password">Пароль</label>
+          <div class="input-wrap">
+            <input class="input" id="password" name="password" type="password" autocomplete="new-password" minlength="6" placeholder="Минимум 6 символов" required />
+            <button type="button" id="togglePass" class="toggle-pass" aria-pressed="false" aria-label="Показать пароль">Показать</button>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="btnRegister" type="submit">Создать аккаунт</button>
+          <a class="btn" href="/web/login.html" role="button" aria-label="Перейти ко входу">Вход</a>
+        </div>
+        <div class="helper small">
+          <span>Уже есть аккаунт? Войдите.</span>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    const qs = (s) => document.querySelector(s);
+    const errorBox = qs('#error');
+    function showError(msg){ errorBox.textContent = msg; errorBox.setAttribute('aria-hidden','false'); }
+    function clearError(){ errorBox.textContent = ''; errorBox.setAttribute('aria-hidden','true'); }
+    function emailValid(v){ return /.+@.+\..+/.test(v); }
+
+    async function ensureNotLoggedIn(){
+      try {
+        const r = await fetch('/api/auth/me', { credentials:'include' });
+        if (r.ok) { location.replace('/'); }
+      } catch {}
+    }
+
+    function togglePassword(){
+      const inp = qs('#password');
+      const btn = qs('#togglePass');
+      const show = inp.type === 'password';
+      inp.type = show ? 'text' : 'password';
+      btn.setAttribute('aria-pressed', String(show));
+      btn.textContent = show ? 'Скрыть' : 'Показать';
+    }
+
+    async function onSubmit(e){
+      e.preventDefault();
+      clearError();
+      const name = qs('#name').value.trim();
+      const email = qs('#email').value.trim();
+      const password = qs('#password').value;
+      if (!name) return showError('Укажите имя.');
+      if (!emailValid(email)) return showError('Укажите корректный email.');
+      if (!password || password.length < 6) return showError('Пароль должен быть не короче 6 символов.');
+
+      const btn = qs('#btnRegister');
+      const prev = btn.textContent;
+      btn.textContent = 'Создаём…';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/auth/register', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          credentials:'include',
+          body: JSON.stringify({ name, email, password })
+        });
+        if (!res.ok){
+          let msg = 'Ошибка регистрации';
+          try { const data = await res.json(); if (data && data.error) msg = data.error; } catch {}
+          throw new Error(msg);
+        }
+        location.replace('/');
+      } catch (err){
+        showError(err.message || 'Ошибка сети');
+      } finally {
+        btn.disabled = false; btn.textContent = prev;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      ensureNotLoggedIn();
+      qs('#form').addEventListener('submit', onSubmit);
+      qs('#togglePass').addEventListener('click', togglePassword);
+    });
+  </script>
+</body>
+</html>

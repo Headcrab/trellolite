@@ -154,6 +154,19 @@ go run ./server
 - ADDR — адрес сервера, по умолчанию `:8080`
 - DATABASE_URL — строка подключения к Postgres; по умолчанию для docker `postgres://postgres:postgres@db:5432/trellolite?sslmode=disable`
 
+### Аутентификация
+- SESSION_COOKIE_NAME — имя cookie сессии (по умолчанию trellolite_sess)
+- SESSION_TTL — срок жизни сессии (например, `336h` для 14 дней)
+- COOKIE_SAMESITE — `lax` (по умолчанию), `strict`, `none`
+- COOKIE_SECURE — `true` в проде (HTTPS), `false` в dev
+
+OAuth (GitHub):
+- OAUTH_GITHUB_CLIENT_ID
+- OAUTH_GITHUB_CLIENT_SECRET
+- OAUTH_GITHUB_REDIRECT_URL (например, `http://localhost:8080/api/auth/oauth/github/callback`)
+
+При наличии настроенных значений GitHub‑провайдера на странице входа появится кнопка «Войти через GitHub». Сессии — cookie httpOnly.
+
 ## Тёмная/светлая тема 🌗
 
 Переключатель в левом верхнем углу (light/dark/auto). Хранится в localStorage.

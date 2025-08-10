@@ -10,6 +10,15 @@
   <div id="app">
     <aside class="sidebar">
   <h1>Trellolite <button id="btnTheme" class="btn icon" title="Переключить тему" aria-label="Переключить тему"><svg aria-hidden="true"><use href="#i-auto"></use></svg></button></h1>
+      <div class="userbar" id="userBar" hidden>
+        <div id="userAvatar" class="avatar" aria-hidden="true">U</div>
+        <div class="userinfo">
+          <div id="userName" class="uname">—</div>
+          <div id="userEmail" class="uemail">—</div>
+        </div>
+        <div class="spacer"></div>
+        <button id="btnLogout" class="btn" title="Выйти">Выйти</button>
+      </div>
       <div class="boards-header">
         <span>Доски</span>
         <button id="btnNewBoard" class="btn">+</button>
