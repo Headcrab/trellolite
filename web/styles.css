@@ -106,3 +106,13 @@ dialog menu{display:flex; justify-content:flex-end; gap:8px; margin-top:12px}
 #dlgColor .color-grid{display:grid; grid-template-columns:repeat(9, 1fr); gap:8px; margin:8px 0 12px}
 #dlgColor .swatch{width:100%; aspect-ratio:1/1; border-radius:10px; border:1px solid var(--border); background:var(--c, transparent); position:relative}
 #dlgColor .swatch[data-color=""]{background:repeating-conic-gradient(from 45deg, transparent 0 10px, rgba(127,127,127,.2) 10px 20px)}
+
+/* Context menu */
+.ctx-menu{position:fixed; z-index:10000; min-width:220px; background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:10px; box-shadow:0 10px 30px rgba(2,6,23,.18), 0 4px 10px rgba(2,6,23,.08)}
+.ctx-menu ul{list-style:none; margin:6px 0; padding:4px}
+.ctx-menu li{padding:8px 12px; border-radius:8px; cursor:pointer}
+.ctx-menu li:hover{background:var(--hover)}
+.ctx-menu li:focus{outline:none; background:var(--hover)}
+.ctx-menu li.disabled{opacity:.6; pointer-events:none}
+.ctx-menu li.danger{color:#b91c1c}
+.ctx-menu li.sep{height:1px; margin:6px 8px; background:var(--border); padding:0}

@@ -17,6 +17,7 @@ const api = {
   async getComments(cardId){ return fetchJSON(`/api/cards/${cardId}/comments`) },
   async addComment(cardId, body){ return fetchJSON(`/api/cards/${cardId}/comments`, {method:'POST', body:{body}}) },
   async updateCardFields(id, payload){ return fetchJSON(`/api/cards/${id}`, {method:'PATCH', body:payload}) },
+  async deleteCard(id){ return fetchJSON(`/api/cards/${id}`, {method:'DELETE'}) },
   async moveBoard(id, newIndex){ return fetchJSON(`/api/boards/${id}/move`, {method:'POST', body:{new_index: newIndex}}) },
 };
 
@@ -44,7 +45,9 @@ const els = { boards: el('boards'), boardTitle: el('boardTitle'), lists: el('lis
   cvDueAt: el('cvDueAt'), cvComments: el('cvComments'), cvCommentText: el('cvCommentText'),
   btnAddComment: el('btnAddComment'), btnCloseCardView: el('btnCloseCardView'), btnSaveCardView: el('btnSaveCardView'),
   dlgConfirm: el('dlgConfirm'), formConfirm: el('formConfirm'), confirmMessage: el('confirmMessage'),
-  dlgColor: el('dlgColor'), formColor: el('formColor'), colorCustom: el('colorCustom') };
+  dlgColor: el('dlgColor'), formColor: el('formColor'), colorCustom: el('colorCustom'),
+  dlgInput: el('dlgInput'), formInput: el('formInput'), inputTitle: el('inputTitle'), inputLabel: el('inputLabel'), inputValue: el('inputValue'),
+  dlgSelect: el('dlgSelect'), formSelect: el('formSelect'), selectTitle: el('selectTitle'), selectLabel: el('selectLabel'), selectControl: el('selectControl') };
 
 function applyThemeIcon(mode){
   const btn = document.getElementById('btnTheme'); if(!btn) return;
@@ -105,7 +108,7 @@ async function init(){
     });
   }
 
-  await refreshBoards(); bindUI();
+  await refreshBoards(); bindUI(); setupContextMenu();
   if(state.boards.length) openBoard(state.boards[0].id);
 }
 
@@ -167,7 +170,7 @@ function bindUI(){
   els.btnRenameBoard.addEventListener('click', async () => {
     if(!state.currentBoardId) return;
     const current = els.boardTitle.textContent.trim();
-    const name = prompt('Новое название доски:', current);
+  const name = await inputDialog({ title:'Переименование доски', label:'Новое название', value: current });
     if(!name || name.trim() === current) return;
     try { await api.updateBoard(state.currentBoardId, name.trim()); els.boardTitle.textContent = name.trim(); await refreshBoards(); }
     catch(err){ alert('Не удалось переименовать: ' + err.message); }
@@ -209,6 +212,303 @@ function bindUI(){
     const clearBtn = els.formColor && els.formColor.querySelector('button[value="clear"]');
     if(clearBtn){ clearBtn.addEventListener('click', () => { els.dlgColor.dataset.selected = ''; els.dlgColor.close('ok'); }); }
   }
+}
+
+// ---- Context menu ----
+let ctxMenuEl;
+function setupContextMenu(){
+  // Create menu element once
+  ctxMenuEl = document.createElement('div');
+  ctxMenuEl.className = 'ctx-menu';
+  ctxMenuEl.style.display = 'none';
+  document.body.appendChild(ctxMenuEl);
+
+  const hide = () => { ctxMenuEl.style.display = 'none'; ctxMenuEl.innerHTML = ''; };
+  document.addEventListener('click', hide);
+  window.addEventListener('resize', hide);
+  window.addEventListener('scroll', hide, true);
+  document.addEventListener('keydown', (e) => { if(e.key === 'Escape') hide(); });
+  // Keyboard navigation inside menu
+  ctxMenuEl.addEventListener('keydown', (e) => {
+    const items = [...ctxMenuEl.querySelectorAll('li:not(.disabled):not(.sep)')];
+    if(items.length === 0) return;
+    const active = document.activeElement && document.activeElement.closest('.ctx-menu li');
+    let idx = items.indexOf(active);
+    if(e.key === 'ArrowDown'){
+      e.preventDefault();
+      idx = (idx + 1) % items.length; items[idx].focus();
+    } else if(e.key === 'ArrowUp'){
+      e.preventDefault();
+      idx = (idx - 1 + items.length) % items.length; items[idx].focus();
+    } else if(e.key === 'Home'){
+      e.preventDefault(); items[0].focus();
+    } else if(e.key === 'End'){
+      e.preventDefault(); items[items.length - 1].focus();
+    } else if(e.key === 'Enter' || e.key === ' '){
+      e.preventDefault(); if(active){ active.click(); }
+    }
+  });
+
+  document.addEventListener('contextmenu', async (e) => {
+    e.preventDefault();
+    // Build items based on target
+    const items = await buildContextMenuItems(e);
+    if(!items || items.length === 0){ hide(); return; }
+    renderContextMenu(items, e.clientX, e.clientY);
+  });
+}
+
+function renderContextMenu(items, x, y){
+  ctxMenuEl.innerHTML = '';
+  const ul = document.createElement('ul');
+  ul.setAttribute('role', 'menu');
+  for(const it of items){
+    if(it.type === 'separator' || it.label === '---'){
+      const hr = document.createElement('li'); hr.className = 'sep'; ul.appendChild(hr); continue;
+    }
+    const li = document.createElement('li');
+    li.textContent = it.label;
+    li.setAttribute('role', 'menuitem');
+    if(it.danger) li.classList.add('danger');
+    if(it.disabled){ li.classList.add('disabled'); }
+    else if(typeof it.action === 'function'){
+      li.addEventListener('click', () => { it.action(); ctxMenuEl.style.display='none'; });
+    }
+    if(!it.disabled){ li.tabIndex = 0; }
+    ul.appendChild(li);
+  }
+  ctxMenuEl.appendChild(ul);
+  ctxMenuEl.style.display = 'block';
+  // position with viewport bounds consideration
+  const rect = ctxMenuEl.getBoundingClientRect();
+  let left = x, top = y;
+  if(left + rect.width > window.innerWidth) left = Math.max(4, window.innerWidth - rect.width - 4);
+  if(top + rect.height > window.innerHeight) top = Math.max(4, window.innerHeight - rect.height - 4);
+  ctxMenuEl.style.left = left + 'px';
+  ctxMenuEl.style.top = top + 'px';
+  // focus first actionable item
+  const first = ctxMenuEl.querySelector('li[role="menuitem"]:not(.disabled):not(.sep)');
+  if(first) first.focus();
+}
+
+async function buildContextMenuItems(e){
+  const targetCard = e.target.closest('.card');
+  if(targetCard){
+    const id = parseInt(targetCard.dataset.id, 10);
+    const listId = parseInt(targetCard.closest('.cards')?.dataset.listId || '0', 10);
+    const c = (state.cards.get(listId) || []).find(x => x.id === id);
+    return [
+  { label: 'Открыть/Редактировать', action: () => openCard(c) },
+  { label: 'Дубликат карточки', action: async () => { await duplicateCard(id, listId); } },
+  { label: 'Переместить…', action: async () => { await moveCardPrompt(id, listId); } },
+      { label: 'Цвет…', action: async () => {
+          const color = await pickColor(c?.color || ''); if(color === undefined) return;
+          try { await api.updateCardFields(id, { color: color || '' }); if(c){ c.color = color || ''; const el = document.querySelector(`.card[data-id="${id}"]`); if(el){ if(c.color) el.style.setProperty('--clr', c.color); else el.style.removeProperty('--clr'); } } }
+          catch(err){ alert('Не удалось сохранить цвет карточки: ' + err.message); }
+        } },
+      { label: '---' },
+      { label: 'Удалить карточку', danger: true, action: async () => {
+          const ok = await confirmDialog('Удалить карточку безвозвратно?'); if(!ok) return;
+          try { await api.deleteCard(id); const el = document.querySelector(`.card[data-id="${id}"]`); if(el) el.remove(); const arr = state.cards.get(listId) || []; state.cards.set(listId, arr.filter(x=>x.id!==id)); }
+          catch(err){ alert('Не удалось удалить карточку: ' + err.message); }
+        } },
+    ];
+  }
+
+  const targetList = e.target.closest('section.list');
+  if(targetList){
+    const listId = parseInt(targetList.dataset.id, 10);
+    const l = state.lists.find(x => x.id === listId);
+    return [
+      { label: 'Добавить карточку', action: () => { els.formCard.reset(); els.formCard.dataset.listId = listId; els.dlgCard.returnValue=''; els.dlgCard.showModal(); } },
+    { label: 'Переименовать список', action: async () => {
+      const current = l?.title || targetList.querySelector('h3')?.textContent?.trim() || '';
+      const name = await inputDialog({ title:'Переименование списка', label:'Новое название', value: current }); if(!name || !name.trim() || name.trim() === current) return;
+          try { await api.updateList(listId, { title: name.trim() }); if(l){ l.title = name.trim(); } const h3 = targetList.querySelector('h3'); if(h3) h3.textContent = name.trim(); }
+          catch(err){ alert('Не удалось переименовать: ' + err.message); }
+        } },
+  { label: 'Дубликат списка', action: async () => { await duplicateList(listId); } },
+  { label: 'Переместить…', action: async () => { await moveListPrompt(listId); } },
+      { label: 'Цвет…', action: async () => {
+          const color = await pickColor(l?.color || ''); if(color === undefined) return;
+          try { await api.updateList(listId, { color: color || '' }); if(l){ l.color = color || ''; } if(color) targetList.style.setProperty('--clr', color); else targetList.style.removeProperty('--clr'); }
+          catch(err){ alert('Не удалось сохранить цвет списка: ' + err.message); }
+        } },
+      { label: '---' },
+      { label: 'Удалить список', danger: true, action: async () => {
+          const ok = await confirmDialog('Удалить список и его карточки?'); if(!ok) return;
+          try { await api.deleteList(listId); state.lists = state.lists.filter(x => x.id !== listId); state.cards.delete(listId); targetList.remove(); }
+          catch(err){ alert('Не удалось удалить список: ' + err.message); }
+        } },
+    ];
+  }
+
+  const targetBoardLi = e.target.closest('#boards li');
+  if(targetBoardLi){
+    const boardId = parseInt(targetBoardLi.dataset.id, 10);
+    const b = state.boards.find(x => x.id === boardId);
+    return [
+      { label: 'Открыть доску', action: () => openBoard(boardId) },
+    { label: 'Переименовать доску', action: async () => {
+      const current = b?.title || targetBoardLi.querySelector('.t')?.textContent?.trim() || '';
+      const name = await inputDialog({ title:'Переименование доски', label:'Новое название', value: current }); if(!name || !name.trim() || name.trim() === current) return;
+          try { await api.updateBoard(boardId, name.trim()); if(b){ b.title = name.trim(); } const t = targetBoardLi.querySelector('.t'); if(t) t.textContent = name.trim(); await refreshBoards(); }
+          catch(err){ alert('Не удалось переименовать: ' + err.message); }
+        } },
+      { label: 'Цвет…', action: async () => {
+          const color = await pickColor(b?.color || ''); if(color === undefined) return;
+          try { await api.setBoardColor(boardId, color || ''); if(b){ b.color = color || ''; } if(color) targetBoardLi.style.setProperty('--clr', color); else targetBoardLi.style.removeProperty('--clr'); }
+          catch(err){ alert('Не удалось сохранить цвет доски: ' + err.message); }
+        } },
+      { label: '---' },
+      { label: 'Удалить доску', danger: true, action: async () => {
+          const ok = await confirmDialog('Удалить доску безвозвратно?'); if(!ok) return;
+          try { await api.deleteBoard(boardId); await refreshBoards(); if(state.currentBoardId === boardId){ state.currentBoardId = null; els.boardTitle.textContent=''; els.lists.innerHTML=''; }
+          } catch(err){ alert('Не удалось удалить доску: ' + err.message); }
+        } },
+    ];
+  }
+
+  // Containers / empty areas
+  if(e.target.closest('#boards')){
+    return [
+      { label: 'Новая доска', action: () => { els.formBoard.reset(); els.dlgBoard.returnValue=''; els.dlgBoard.showModal(); } },
+    ];
+  }
+  if(e.target.closest('#boardHeader') || e.target.closest('.main')){
+    const boardId = state.currentBoardId;
+    const b = state.boards.find(x => x.id === boardId);
+    const base = [];
+    if(boardId){
+      base.push(
+        { label: 'Новый список', action: () => { if(!state.currentBoardId) return; els.formList.reset(); els.dlgList.returnValue=''; els.dlgList.showModal(); } },
+    { label: 'Переименовать доску', action: async () => {
+      const current = els.boardTitle.textContent.trim();
+      const name = await inputDialog({ title:'Переименование доски', label:'Новое название', value: current }); if(!name || !name.trim() || name.trim() === current) return;
+            try { await api.updateBoard(boardId, name.trim()); els.boardTitle.textContent = name.trim(); await refreshBoards(); }
+            catch(err){ alert('Не удалось переименовать: ' + err.message); }
+          } },
+        { label: 'Цвет…', action: async () => {
+            const color = await pickColor(b?.color || ''); if(color === undefined) return;
+            try { await api.setBoardColor(boardId, color || ''); if(b){ b.color = color || ''; } await refreshBoards(); }
+            catch(err){ alert('Не удалось сохранить цвет доски: ' + err.message); }
+          } },
+        { label: '---' },
+        { label: 'Удалить доску', danger: true, action: async () => {
+            const ok = await confirmDialog('Удалить текущую доску безвозвратно?'); if(!ok) return;
+            try { await api.deleteBoard(boardId); await refreshBoards(); state.currentBoardId = null; els.boardTitle.textContent = ''; els.lists.innerHTML=''; }
+            catch(err){ alert('Не удалось удалить доску: ' + err.message); }
+          } },
+      );
+    } else {
+      base.push({ label: 'Новая доска', action: () => { els.formBoard.reset(); els.dlgBoard.returnValue=''; els.dlgBoard.showModal(); } });
+    }
+    return base;
+  }
+
+  const cardsContainer = e.target.closest('.cards');
+  if(cardsContainer){
+    const listId = parseInt(cardsContainer.dataset.listId || '0', 10);
+    return [ { label: 'Добавить карточку', action: () => { els.formCard.reset(); els.formCard.dataset.listId = listId; els.dlgCard.returnValue=''; els.dlgCard.showModal(); } } ];
+  }
+
+  // Fallback: generic new board
+  return [ { label: 'Новая доска', action: () => { els.formBoard.reset(); els.dlgBoard.returnValue=''; els.dlgBoard.showModal(); } } ];
+}
+
+// Duplicate a card in the same list (title, description, due_at, color)
+async function duplicateCard(cardId, listId){
+  const arr = state.cards.get(listId) || [];
+  const src = arr.find(x => x.id === cardId);
+  if(!src) return;
+  try {
+    const created = await api.createCard(listId, src.title || '', src.description || '');
+    const payload = {};
+    if(src.due_at) payload.due_at = src.due_at;
+    if(src.color) payload.color = src.color;
+    if(Object.keys(payload).length){ try { await api.updateCardFields(created.id, payload); Object.assign(created, payload); } catch{} }
+    const cardsEl = document.querySelector(`.cards[data-list-id="${listId}"]`);
+    if(cardsEl){ cardsEl.appendChild(renderCard(created)); }
+    arr.push(created); state.cards.set(listId, arr);
+  } catch(err){ alert('Не удалось дублировать карточку: ' + err.message); }
+}
+
+// Duplicate a list (title, color) and copy its cards
+async function duplicateList(listId){
+  const l = state.lists.find(x => x.id === listId); if(!l) return;
+  const title = (l.title || '') + ' (копия)';
+  try {
+    const nl = await api.createList(state.currentBoardId, title);
+    if(l.color){ try { await api.updateList(nl.id, { color: l.color }); nl.color = l.color; } catch{} }
+    // Add to state/UI
+    state.lists.push(nl); state.cards.set(nl.id, []);
+    const col = buildListColumn(nl); els.lists.appendChild(col);
+    // Copy cards sequentially
+    const cards = state.cards.get(listId) || [];
+    for(const c of cards){ try { await duplicateCard(c.id, listId); } catch{} }
+  } catch(err){ alert('Не удалось дублировать список: ' + err.message); }
+}
+
+// Prompt-driven card move to another list within current board (to end)
+async function moveCardPrompt(cardId, currentListId){
+  const lists = state.lists || []; if(!lists.length) return;
+  const idx = await selectDialog({ title:'Переместить карточку', label:'Список назначения', options: lists.map((l,i)=>({value: String(i), label: l.title})) });
+  if(idx === undefined || idx === null) return;
+  const target = lists[parseInt(idx,10)]; if(!target) return;
+  try { await api.moveCard(cardId, target.id, 1<<30); renderBoard(state.currentBoardId); }
+  catch(err){ alert('Не удалось переместить карточку: ' + err.message); }
+}
+
+// Prompt-driven list move to another board (to end)
+async function moveListPrompt(listId){
+  const boards = state.boards || []; if(!boards.length) return;
+  const idx = await selectDialog({ title:'Переместить список', label:'Доска назначения', options: boards.map((b,i)=>({value: String(i), label: b.title + (b.id===state.currentBoardId?' (текущая)':'' )})) });
+  if(idx === undefined || idx === null) return;
+  const target = boards[parseInt(idx,10)]; if(!target) return;
+  try { await api.moveList(listId, 1<<30, target.id); renderBoard(state.currentBoardId); }
+  catch(err){ alert('Не удалось переместить список: ' + err.message); }
+}
+
+// App-level dialogs
+function inputDialog({ title, label, value }){
+  return new Promise((resolve) => {
+    els.inputTitle.textContent = title || 'Ввод';
+    els.inputLabel.textContent = label || 'Значение';
+    els.inputValue.value = value || '';
+    const onClose = () => {
+      els.dlgInput.removeEventListener('close', onClose);
+      const rv = els.dlgInput.returnValue;
+      if(rv !== 'ok'){ resolve(undefined); return; }
+      resolve(els.inputValue.value);
+    };
+    els.dlgInput.addEventListener('close', onClose);
+    const cancelBtn = els.formInput.querySelector('button[value="cancel"][type="button"]');
+    if(cancelBtn){ cancelBtn.onclick = () => { els.dlgInput.close('cancel'); }; }
+    els.dlgInput.returnValue=''; els.dlgInput.showModal();
+    setTimeout(()=>{ els.inputValue.focus(); els.inputValue.select(); }, 0);
+  });
+}
+
+function selectDialog({ title, label, options }){
+  return new Promise((resolve) => {
+    els.selectTitle.textContent = title || 'Выбор';
+    els.selectLabel.textContent = label || 'Выберите';
+    els.selectControl.innerHTML = '';
+    for(const opt of (options||[])){
+      const o = document.createElement('option'); o.value = String(opt.value); o.textContent = String(opt.label); els.selectControl.appendChild(o);
+    }
+    const onClose = () => {
+      els.dlgSelect.removeEventListener('close', onClose);
+      const rv = els.dlgSelect.returnValue;
+      if(rv !== 'ok'){ resolve(undefined); return; }
+      resolve(els.selectControl.value);
+    };
+    els.dlgSelect.addEventListener('close', onClose);
+    const cancelBtn = els.formSelect.querySelector('button[value="cancel"][type="button"]');
+    if(cancelBtn){ cancelBtn.onclick = () => { els.dlgSelect.close('cancel'); }; }
+    els.dlgSelect.returnValue=''; els.dlgSelect.showModal();
+    setTimeout(()=>{ els.selectControl.focus(); }, 0);
+  });
 }
 
 // Color picker helper: returns string (e.g., #3b82f6), '' for none, or undefined if canceled

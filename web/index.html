@@ -113,6 +113,34 @@
     </form>
   </dialog>
 
+  <dialog id="dlgInput">
+    <form id="formInput" method="dialog">
+      <h3 id="inputTitle">Ввод</h3>
+      <label>
+        <span id="inputLabel">Значение</span>
+        <input id="inputValue" name="value" maxlength="200" required>
+      </label>
+      <menu>
+        <button type="button" value="cancel" class="btn">Отмена</button>
+        <button value="ok" class="btn primary">ОК</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlgSelect">
+    <form id="formSelect" method="dialog">
+      <h3 id="selectTitle">Выбор</h3>
+      <label>
+        <span id="selectLabel">Выберите</span>
+        <select id="selectControl" name="select"></select>
+      </label>
+      <menu>
+        <button type="button" value="cancel" class="btn">Отмена</button>
+        <button value="ok" class="btn primary">Выбрать</button>
+      </menu>
+    </form>
+  </dialog>
+
   <dialog id="dlgColor">
     <form id="formColor" method="dialog">
       <h3>Цвет</h3>
