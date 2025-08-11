@@ -98,26 +98,44 @@
     </form>
   </dialog>
 
-  <dialog id="dlgCard">
-    <form id="formCard" method="dialog">
-  <div class="dialog-body">
-        <h3>Новая карточка</h3>
-        <label>Заголовок
-          <input name="title" required maxlength="200" placeholder="Название">
-        </label>
-        <label>Описание
-            <textarea name="description" rows="6" placeholder="Опишите задачу..."></textarea>
-            <label class="inline"><input type="checkbox" name="description_is_md"> <span>Markdown</span></label>
-        </label>
-        <label>Срок
-          <input id="dueAtCreate" name="due_at" type="text" placeholder="дд.мм.гггг  чч:мм" readonly>
-        </label>
-        <menu>
-          <button type="button" value="cancel" class="btn" formnovalidate>Отмена</button>
-          <button value="ok" class="btn primary">Создать</button>
-        </menu>
+  <dialog id="dlgCard" class="card-dialog">
+    <div class="card-dialog-container">
+      <div class="card-dialog-header">
+        <h2>Новая карточка</h2>
+        <button type="button" class="close-btn" id="btnCloseCardDialog">×</button>
       </div>
-    </form>
+      
+      <form id="formCard" class="card-form">
+        <div class="form-group">
+          <label for="cardTitle">Заголовок</label>
+          <input type="text" id="cardTitle" name="title" required maxlength="200" placeholder="Название задачи">
+        </div>
+        
+        <div class="form-group">
+          <label for="cardDescription">Описание</label>
+          <textarea id="cardDescription" name="description" rows="6" placeholder="Опишите задачу..."></textarea>
+          <div class="checkbox-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="description_is_md">
+              <span class="checkmark"></span>
+              Markdown
+            </label>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="cardDueAt">Срок</label>
+          <input id="cardDueAt" name="due_at" type="text" placeholder="дд.мм.гггг чч:мм" readonly>
+        </div>
+        
+        <div id="cardFormStatus" class="form-status"></div>
+        
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="btnCancelCardDialog">Отмена</button>
+          <button type="submit" class="btn btn-primary">Создать</button>
+        </div>
+      </form>
+    </div>
   </dialog>
 
   <dialog id="dlgCardView">

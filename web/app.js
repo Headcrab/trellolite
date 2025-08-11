@@ -74,6 +74,7 @@ const el = (id) => document.getElementById(id);
 const els = { boards: el('boards'), boardTitle: el('boardTitle'), lists: el('lists'),
   dlgBoard: el('dlgBoard'), formBoard: el('formBoard'), dlgList: el('dlgList'),
   formList: el('formList'), dlgCard: el('dlgCard'), formCard: el('formCard'),
+  cardTitle: el('cardTitle'), cardDescription: el('cardDescription'), cardDueAt: el('cardDueAt'),
   btnNewBoard: el('btnNewBoard'), btnNewList: el('btnNewList'),
   btnRenameBoard: el('btnRenameBoard'), btnDeleteBoard: el('btnDeleteBoard'),
   dlgCardView: el('dlgCardView'), cvTitle: el('cvTitle'), cvDescription: el('cvDescription'),
@@ -83,7 +84,7 @@ const els = { boards: el('boards'), boardTitle: el('boardTitle'), lists: el('lis
   dlgColor: el('dlgColor'), formColor: el('formColor'), colorCustom: el('colorCustom'),
   dlgInput: el('dlgInput'), formInput: el('formInput'), inputTitle: el('inputTitle'), inputLabel: el('inputLabel'), inputValue: el('inputValue'),
   dlgSelect: el('dlgSelect'), formSelect: el('formSelect'), selectTitle: el('selectTitle'), selectLabel: el('selectLabel'), selectControl: el('selectControl'),
-  dlgDateTime: el('dlgDateTime'), dtMonth: el('dtMonth'), dtGrid: el('dtGrid'), dtPrev: el('dtPrev'), dtNext: el('dtNext'), dtHour: el('dtHour'), dtMinute: el('dtMinute'), btnDtOk: el('btnDtOk'), btnDtCancel: el('btnDtCancel'), btnDtClear: el('btnDtClear'), dueAtCreate: el('dueAtCreate') };
+  dlgDateTime: el('dlgDateTime'), dtMonth: el('dtMonth'), dtGrid: el('dtGrid'), dtPrev: el('dtPrev'), dtNext: el('dtNext'), dtHour: el('dtHour'), dtMinute: el('dtMinute'), btnDtOk: el('btnDtOk'), btnDtCancel: el('btnDtCancel'), btnDtClear: el('btnDtClear'), cardDueAt: el('cardDueAt') };
 
 function applyThemeIcon(mode){
   const btn = document.getElementById('btnTheme'); if(!btn) return;
@@ -264,13 +265,33 @@ function bindUI(){
   });
   els.dlgList.querySelector('button[value="cancel"][type="button"]').addEventListener('click', () => { els.formList.reset(); els.dlgList.close('cancel'); });
 
-  els.dlgCard.addEventListener('close', async () => {
-    if(els.dlgCard.returnValue !== 'ok') return;
+  // Card dialog event handlers
+  const btnCloseCardDialog = document.getElementById('btnCloseCardDialog');
+  const btnCancelCardDialog = document.getElementById('btnCancelCardDialog');
+  
+  if (btnCloseCardDialog) {
+    btnCloseCardDialog.addEventListener('click', () => {
+      els.formCard.reset(); 
+      delete els.formCard.dataset.listId; 
+      els.dlgCard.close();
+    });
+  }
+  
+  if (btnCancelCardDialog) {
+    btnCancelCardDialog.addEventListener('click', () => {
+      els.formCard.reset(); 
+      delete els.formCard.dataset.listId; 
+      els.dlgCard.close();
+    });
+  }
+  
+  els.formCard.addEventListener('submit', async (e) => {
+    e.preventDefault();
     const fd = new FormData(els.formCard);
     const title = fd.get('title').trim();
     const description = (fd.get('description')||'').trim();
     const description_is_md = !!els.formCard.querySelector('[name="description_is_md"]')?.checked;
-    const due_at = (els.dueAtCreate && els.dueAtCreate.dataset.iso) ? els.dueAtCreate.dataset.iso : '';
+    const due_at = (els.cardDueAt && els.cardDueAt.dataset.iso) ? els.cardDueAt.dataset.iso : '';
     const listId = parseInt(els.formCard.dataset.listId, 10);
     if(!title || !listId) return;
     try {
@@ -283,10 +304,13 @@ function bindUI(){
         const cardsEl = document.querySelector(`.cards[data-list-id="${listId}"]`);
         if(cardsEl) cardsEl.appendChild(renderCard(c));
       }
-    } catch(err){ alert('Не удалось создать карточку: ' + err.message); }
-    els.formCard.reset(); delete els.formCard.dataset.listId;
+      els.formCard.reset(); 
+      delete els.formCard.dataset.listId;
+      els.dlgCard.close();
+    } catch(err){ 
+      alert('Не удалось создать карточку: ' + err.message); 
+    }
   });
-  els.dlgCard.querySelector('button[value="cancel"][type="button"]').addEventListener('click', () => { els.formCard.reset(); delete els.formCard.dataset.listId; els.dlgCard.close('cancel'); });
 
   // Board rename/delete
   els.btnRenameBoard.addEventListener('click', async () => {
@@ -403,7 +427,7 @@ function bindUI(){
       inputEl.value = text; inputEl.dataset.iso = iso;
     });
   };
-  bindDtInput(els.dueAtCreate);
+  bindDtInput(els.cardDueAt);
   bindDtInput(els.cvDueAt);
 }
 
@@ -1121,7 +1145,7 @@ function buildListColumn(l){
 
   col.querySelector('.btn-add-card').addEventListener('click', () => {
   els.formCard.reset();
-  if(els.dueAtCreate){ els.dueAtCreate.value=''; delete els.dueAtCreate.dataset.iso; }
+  if(els.cardDueAt){ els.cardDueAt.value=''; delete els.cardDueAt.dataset.iso; }
   els.formCard.dataset.listId = l.id; els.dlgCard.returnValue=''; els.dlgCard.showModal();
   });
 
