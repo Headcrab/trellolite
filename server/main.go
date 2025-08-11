@@ -67,8 +67,10 @@ func main() {
 		noStore(w)
 		http.ServeFile(w, r, "./web/register.html")
 	})
-
-	// Gate the root index behind auth: exact path only
+	mux.HandleFunc("GET /web/admin.html", func(w http.ResponseWriter, r *http.Request) {
+		noStore(w)
+		http.ServeFile(w, r, "./web/admin.html")
+	}) // Gate the root index behind auth: exact path only
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			// Not root: let other handlers (e.g., /web/) process

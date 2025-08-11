@@ -220,6 +220,9 @@ async function init(){
 function bindUI(){
   const btnLogout = document.getElementById('btnLogout');
   if(btnLogout){ btnLogout.addEventListener('click', async () => { try { await api.logout(); location.href = '/web/login.html'; } catch(e){ alert('Не удалось выйти: '+e.message); } }); }
+  
+  const btnAdmin = document.getElementById('btnAdmin');
+  if(btnAdmin){ btnAdmin.addEventListener('click', () => { location.href = '/web/admin.html'; }); }
   els.btnNewBoard.addEventListener('click', async () => {
     els.formBoard.reset();
     // populate projects
@@ -598,6 +601,13 @@ function updateUserBar(){
   nameEl.textContent = name; emailEl.textContent = email;
   const letter = (name || email).trim().charAt(0).toUpperCase() || 'U';
   avEl.textContent = letter;
+  
+  // Show admin button for admins
+  const btnAdmin = document.getElementById('btnAdmin');
+  if(btnAdmin) {
+    btnAdmin.style.display = state.user.is_admin ? 'block' : 'none';
+  }
+  
   bar.hidden = false;
 }
 
