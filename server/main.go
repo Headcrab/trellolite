@@ -95,6 +95,11 @@ func main() {
 		http.ServeFile(w, r, "./web/privacy.html")
 	})
 
+	// Public about page
+	mux.HandleFunc("GET /about", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./web/about.html")
+	})
+
 	api := newAPI(store, log)
 	api.routes(mux)
 

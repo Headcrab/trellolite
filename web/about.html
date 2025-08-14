@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="google-site-verification" content="dlgd_dJjtuNNs_lShQtUtyxGA7JIhrE9iY9RXILDesU">
+  <title>О приложении — Trellolite</title>
+  <link rel="icon" type="image/png" href="/web/favicon.png" sizes="32x32">
+  <style>
+    body{max-width:860px;margin:40px auto;padding:0 16px;font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto}
+    h1,h2{line-height:1.25}
+    ul{margin-left:1.2em}
+    .muted{color:#666}
+    .note{background:#f6f8fa;border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px}
+    a{color:#2563eb}
+  </style>
+  <meta name="description" content="Trellolite — простой менеджер задач с досками и карточками. Объясняем цели приложения и как используются данные профиля Google для входа.">
+  <meta name="og:title" content="О Trellolite">
+  <meta name="og:description" content="Назначение приложения, функции и использование данных Google (openid, email, profile) только для входа и отображения имени/аватара.">
+  <meta name="og:type" content="website">
+  <meta name="og:url" content="/about">
+  <meta name="og:image" content="/web/favicon.png">
+  <link rel="canonical" href="/about">
+  
+</head>
+<body>
+  <h1>О Trellolite</h1>
+  <p class="muted">Последнее обновление: 15.08.2025</p>
+
+  <h2>Назначение и функции</h2>
+  <p>Trellolite — лёгкий инструмент для управления задачами и совместной работы. Основные возможности:</p>
+  <ul>
+    <li>Доски, списки и карточки задач</li>
+    <li>Исполнители, сроки, комментарии (поддержка Markdown)</li>
+    <li>Группы доступа к доскам и админ-панель</li>
+    <li>Вход по паролю или через OAuth (Google, GitHub)</li>
+    <li>Подтверждение email и восстановление доступа</li>
+  </ul>
+
+  <h2>Почему вход через Google и какие данные запрашиваются</h2>
+  <p>Вход через Google удобен и безопасен. Приложение запрашивает только базовые данные профиля:</p>
+  <ul>
+    <li><strong>openid</strong> — уникальный идентификатор для безопасной аутентификации;</li>
+    <li><strong>email</strong> — для идентификации аккаунта и уведомлений о безопасности (подтверждение почты, восстановление доступа);</li>
+    <li><strong>profile</strong> (имя и аватар) — для отображения в интерфейсе участникам ваших досок.</li>
+  </ul>
+  <div class="note">Мы <strong>не</strong> запрашиваем доступ к Gmail, Drive, Calendar, контактам и другим данным Google. Данные не используются для рекламы.</div>
+
+  <h2>Как мы используем и храним данные</h2>
+  <ul>
+    <li>Использование: вход и создание аккаунта, показ имени/аватара в интерфейсе, служебные уведомления о безопасности по email.</li>
+    <li>Хранение: имя, email, URL аватара (если есть), идентификатор провайдера OAuth, а также ваши доски/карточки/комментарии.</li>
+    <li>Защита: HTTPS, разграничение доступа по ролям, журналы безопасности (до 90 дней).</li>
+    <li>Контроль: можно отозвать доступ в настройках Google (myaccount.google.com/permissions) и удалить аккаунт в профиле или по запросу.</li>
+  </ul>
+
+  <p>Политика конфиденциальности: <a href="/privacy" rel="nofollow">/privacy</a>. Контакты поддержки: <a href="mailto:support@xtrim.work">support@xtrim.work</a>.</p>
+</body>
+</html>
