@@ -318,6 +318,13 @@
   border-radius: 16px;
   background: transparent;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+.checkbox-group {
+  margin: 24px 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 16px; /* row gap 12, column gap 16 */
+}
   max-width: 500px;
   width: 90vw;
 }
@@ -329,6 +336,18 @@
 
 .user-dialog-container {
   background: var(--panel);
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  position: relative;
+  padding-left: 28px;
+  min-height: 24px;
+  line-height: 20px;
+}
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -340,6 +359,17 @@
   align-items: center;
   padding: 24px 24px 0 24px;
   background: var(--panel);
+.checkbox-label input[type="checkbox"] {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
 }
 
 .user-dialog-header h2 {
@@ -352,6 +382,18 @@
 .close-btn {
   background: none;
   border: none;
+.checkmark {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  background: var(--app);
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
   font-size: 24px;
   color: var(--muted);
   cursor: pointer;
@@ -366,6 +408,17 @@
   color: var(--ink);
 }
 
+.checkbox-label input[type="checkbox"]:focus-visible + .checkmark {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Align status badge with checkboxes */
+.checkbox-group .status {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+}
 .user-form {
   padding: 24px;
 }

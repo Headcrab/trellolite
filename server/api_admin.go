@@ -123,6 +123,54 @@ func (a *api) handleAdminListUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, items)
 }
 
+// PATCH /api/admin/users/{id}
+// Allows admin to update basic user fields: name, email, is_admin, email_verified, and password (optional)
+func (a *api) handleAdminUpdateUser(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	var req struct {
+		Name          *string `json:"name"`
+		Email         *string `json:"email"`
+		IsAdmin       *bool   `json:"is_admin"`
+		EmailVerified *bool   `json:"email_verified"`
+		Password      *string `json:"password"`
+	}
+	if err := readJSON(w, r, &req); err != nil {
+		writeError(w, 400, "invalid payload")
+		return
+	}
+	// sanitize
+	if req.Name != nil {
+		v := strings.TrimSpace(*req.Name)
+		req.Name = &v
+	}
+	if req.Email != nil {
+		v := strings.TrimSpace(*req.Email)
+		if v == "" {
+			writeError(w, 400, "email required")
+			return
+		}
+		req.Email = &v
+	}
+	if req.Password != nil {
+		v := strings.TrimSpace(*req.Password)
+		if v != "" && len(v) < 6 {
+			writeError(w, 400, "password too short")
+			return
+		}
+		req.Password = &v
+	}
+	if err := a.store.AdminUpdateUser(r.Context(), id, req.Name, req.Email, req.IsAdmin, req.EmailVerified, req.Password); err != nil {
+		a.log.Error("admin update user", "err", err)
+		writeError(w, 400, "cannot update user")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
 // GET /api/admin/system
 // Returns basic system capabilities/config flags for admin Settings UI
 func (a *api) handleAdminSystemStatus(w http.ResponseWriter, r *http.Request) {

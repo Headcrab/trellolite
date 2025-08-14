@@ -761,6 +761,56 @@ func (s *Store) UpdateUserPasswordByEmail(ctx context.Context, email, newPasswor
 	return nil
 }
 
+// AdminUpdateUser updates a user's basic fields by id. Fields left nil are not changed.
+func (s *Store) AdminUpdateUser(ctx context.Context, id int64, name *string, email *string, isAdmin *bool, emailVerified *bool, password *string) error {
+	sets := []string{}
+	args := []any{}
+	idx := 1
+	if name != nil {
+		sets = append(sets, fmt.Sprintf("name=$%d", idx))
+		args = append(args, *name)
+		idx++
+	}
+	if email != nil {
+		sets = append(sets, fmt.Sprintf("email=$%d", idx))
+		args = append(args, *email)
+		idx++
+	}
+	if isAdmin != nil {
+		sets = append(sets, fmt.Sprintf("is_admin=$%d", idx))
+		args = append(args, *isAdmin)
+		idx++
+	}
+	if emailVerified != nil {
+		sets = append(sets, fmt.Sprintf("email_verified=$%d", idx))
+		args = append(args, *emailVerified)
+		idx++
+	}
+	// password change (optional)
+	if password != nil && strings.TrimSpace(*password) != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(*password), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+		sets = append(sets, fmt.Sprintf("password_hash=$%d", idx))
+		args = append(args, string(hash))
+		idx++
+	}
+	if len(sets) == 0 {
+		return nil
+	}
+	q := "update users set " + strings.Join(sets, ", ") + fmt.Sprintf(" where id=$%d", idx)
+	args = append(args, id)
+	res, err := s.db.ExecContext(ctx, q, args...)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // MarkEmailVerified sets users.email_verified=true by email (case-insensitive)
 func (s *Store) MarkEmailVerified(ctx context.Context, email string) error {
 	if strings.TrimSpace(email) == "" {

@@ -56,7 +56,7 @@
               </tr>
             </thead>
             <tbody id="usersTableBody">
-              <tr><td colspan="6" class="loading">Загрузка...</td></tr>
+              <tr><td colspan="7" class="loading">Загрузка...</td></tr>
             </tbody>
           </table>
         </div>
@@ -170,7 +170,12 @@
             <span class="checkmark"></span>
             Администратор
           </label>
-          <span id="userEmailVerifiedBadge" class="status" style="margin-left:12px;">—</span>
+          <label class="checkbox-label">
+            <input type="checkbox" id="userEmailVerified" name="email_verified">
+            <span class="checkmark"></span>
+            Почта подтверждена
+          </label>
+          <span id="userEmailVerifiedBadge" class="status">—</span>
         </div>
         
         <div id="userFormStatus" class="form-status"></div>

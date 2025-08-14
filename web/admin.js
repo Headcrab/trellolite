@@ -174,14 +174,14 @@ async function loadUsers(query = '') {
     renderUsers();
   } catch (err) {
     console.error('Failed to load users:', err);
-    $('usersTableBody').innerHTML = `<tr><td colspan="6" class="loading">Ошибка загрузки: ${err.message}</td></tr>`;
+  $('usersTableBody').innerHTML = `<tr><td colspan="7" class="loading">Ошибка загрузки: ${err.message}</td></tr>`;
   }
 }
 
 function renderUsers() {
   const tbody = $('usersTableBody');
   if (!adminState.users.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="loading">Пользователи не найдены</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="7" class="loading">Пользователи не найдены</td></tr>';
     return;
   }
   
@@ -221,6 +221,8 @@ function openUserDialog(user = null) {
   $('userEmail').value = isEdit ? user.email : '';
   $('userPassword').value = '';
   $('userIsAdmin').checked = isEdit ? user.is_admin : false;
+  const cbVerified = $('userEmailVerified');
+  if (cbVerified) cbVerified.checked = isEdit ? !!user.email_verified : false;
   const badge = $('userEmailVerifiedBadge');
   if (badge) {
     if (isEdit) {
@@ -261,7 +263,8 @@ async function saveUser() {
   const payload = {
     name: formData.get('name'),
     email: formData.get('email'),
-    is_admin: formData.has('is_admin')
+  is_admin: formData.has('is_admin'),
+  email_verified: formData.has('email_verified')
   };
 
   if (!isEdit) {

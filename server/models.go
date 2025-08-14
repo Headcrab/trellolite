@@ -48,14 +48,14 @@ type Comment struct {
 // They are not yet wired into the API and exist to maintain type discipline.
 
 type User struct {
-	ID        int64     `json:"id"`
-	Email     string    `json:"email"`
-	Name      string    `json:"name"`
-	AvatarURL string    `json:"avatar_url,omitempty"`
-	IsActive  bool      `json:"is_active"`
-	IsAdmin   bool      `json:"is_admin"`
-	EmailVerified bool   `json:"email_verified"`
-	CreatedAt time.Time `json:"created_at"`
+	ID            int64     `json:"id"`
+	Email         string    `json:"email"`
+	Name          string    `json:"name"`
+	AvatarURL     string    `json:"avatar_url,omitempty"`
+	IsActive      bool      `json:"is_active"`
+	IsAdmin       bool      `json:"is_admin"`
+	EmailVerified bool      `json:"email_verified"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type Project struct {

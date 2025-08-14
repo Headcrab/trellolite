@@ -75,6 +75,7 @@ func (a *api) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/admin/groups/{id}/users", a.requireAdmin(a.handleAdminAddUserToGroup))
 	mux.HandleFunc("DELETE /api/admin/groups/{id}/users/{uid}", a.requireAdmin(a.handleAdminRemoveUserFromGroup))
 	mux.HandleFunc("GET /api/admin/users", a.requireAdmin(a.handleAdminListUsers))
+	mux.HandleFunc("PATCH /api/admin/users/{id}", a.requireAdmin(a.handleAdminUpdateUser))
 	mux.HandleFunc("DELETE /api/admin/users/{id}", a.requireAdmin(a.handleAdminDeleteUser))
 	mux.HandleFunc("GET /api/admin/system", a.requireAdmin(a.handleAdminSystemStatus))
 
