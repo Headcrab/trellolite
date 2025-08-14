@@ -33,6 +33,7 @@ type Card struct {
 	Color           string     `json:"color,omitempty"`
 	Pos             int64      `json:"pos"`
 	DueAt           *time.Time `json:"due_at,omitempty"`
+	AssigneeUserID  *int64     `json:"assignee_id,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
 }
 

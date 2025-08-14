@@ -5,6 +5,7 @@ const api = {
   async createBoard(title){ return fetchJSON('/api/boards', {method:'POST', body:{title}}) },
   async listProjects(){ return fetchJSON('/api/projects'); },
   async createProject(name){ return fetchJSON('/api/projects', {method:'POST', body:{name}}); },
+  async boardMembers(id){ return fetchJSON(`/api/boards/${id}/members`); },
   async getBoard(id){ return fetchJSON('/api/boards/'+id) },
   async getBoardFull(id){ return fetchJSON(`/api/boards/${id}/full`) },
   async updateBoard(id, title){ return fetchJSON(`/api/boards/${id}`, {method:'PATCH', body:{title}}) },
@@ -69,7 +70,7 @@ async function fetchJSON(url, opts={}){
   try { return JSON.parse(text); } catch { return null; }
 }
 
-const state = { boards: [], currentBoardId: null, lists: [], cards: new Map(), currentCard: null, dragListCrossDrop: false, user: null };
+const state = { boards: [], currentBoardId: null, boardMembers: new Map(), lists: [], cards: new Map(), currentCard: null, dragListCrossDrop: false, user: null };
 const el = (id) => document.getElementById(id);
 const els = { boards: el('boards'), boardTitle: el('boardTitle'), lists: el('lists'),
   dlgBoard: el('dlgBoard'), formBoard: el('formBoard'), dlgList: el('dlgList'),
@@ -78,7 +79,8 @@ const els = { boards: el('boards'), boardTitle: el('boardTitle'), lists: el('lis
   btnNewBoard: el('btnNewBoard'), btnNewList: el('btnNewList'),
   btnRenameBoard: el('btnRenameBoard'), btnDeleteBoard: el('btnDeleteBoard'),
   dlgCardView: el('dlgCardView'), cvTitle: el('cvTitle'), cvDescription: el('cvDescription'),
-  cvDueAt: el('cvDueAt'), cvComments: el('cvComments'), cvCommentText: el('cvCommentText'),
+  dlgCardView: el('dlgCardView'), cvTitle: el('cvTitle'), cvDescription: el('cvDescription'),
+  cvAssignee: el('cvAssignee'), cvDueAt: el('cvDueAt'), cvComments: el('cvComments'), cvCommentText: el('cvCommentText'),
   btnAddComment: el('btnAddComment'), btnCloseCardView: el('btnCloseCardView'), btnSaveCardView: el('btnSaveCardView'),
   dlgConfirm: el('dlgConfirm'), formConfirm: el('formConfirm'), confirmMessage: el('confirmMessage'),
   dlgColor: el('dlgColor'), formColor: el('formColor'), colorCustom: el('colorCustom'),
@@ -391,6 +393,8 @@ function bindUI(){
   if(isMdToggle){ const md = isMdToggle.getAttribute('aria-pressed') === 'true'; if(typeof c.description_is_md === 'boolean'){ if(md !== !!c.description_is_md) payload.description_is_md = md; } else { payload.description_is_md = md; } }
   const dueVal = els.cvDueAt.dataset.iso || '';
   if(dueVal) payload.due_at = dueVal; else if(c.due_at) payload.due_at = '';
+  // Assignee (value '0' means clear)
+  if(els.cvAssignee){ const v = els.cvAssignee.value || '0'; const cur = c.assignee_id ? String(c.assignee_id) : '0'; if(v !== cur){ payload.assignee_id = Number(v); } }
     if(Object.keys(payload).length===0){ els.dlgCardView.close(); return; }
     try { await api.updateCardFields(c.id, payload); els.dlgCardView.close(); renderBoard(state.currentBoardId); }
     catch(err){ alert('Не удалось сохранить карточку: ' + err.message); }
@@ -1017,6 +1021,8 @@ async function renderBoard(id){
   els.boardTitle.textContent = 'Загрузка...';
   try {
     const full = await api.getBoardFull(id);
+    // Preload board members for assignee select and card badges
+    try { const members = await api.boardMembers(full.board.id); state.boardMembers.set(full.board.id, members||[]); } catch(e){ console.warn('board members load failed', e.message); }
     els.boardTitle.textContent = full.board.title;
     state.lists = full.lists || []; state.cards.clear();
     for(const l of state.lists){ state.cards.set(l.id, (full.cards && full.cards[l.id]) || []); }
@@ -1093,6 +1099,7 @@ function onEvent(ev){
       break;
     }
     case 'card.updated':
+  case 'card.assignee_changed':
     case 'card.moved':
     case 'comment.created': {
       // Для простоты: переотрисовать текущую доску, чтобы синхронизировать позиции и новые данные
@@ -1179,7 +1186,13 @@ function renderLists(){
 function renderCard(c){
   const el = document.createElement('article');
   el.className = 'card'; el.draggable = true; el.dataset.id = c.id;
-  el.innerHTML = `<span class="ico"><svg aria-hidden="true"><use href="#i-card"></use></svg></span><div class="title">${escapeHTML(c.title)}</div><div class="spacer"></div><button class="btn icon btn-color" title="Цвет карточки" aria-label="Цвет"><svg aria-hidden="true"><use href="#i-palette"></use></svg></button>`;
+  // Assignee badge (if known)
+  let assigneeHTML = '';
+  if(c.assignee_id && state.currentBoardId && state.boardMembers.has(state.currentBoardId)){
+    const u = (state.boardMembers.get(state.currentBoardId)||[]).find(x => x.id === c.assignee_id);
+    if(u){ const initials = (u.name||u.email||'?').trim().slice(0,1).toUpperCase(); assigneeHTML = `<span class="assignee" title="Исполнитель: ${escapeHTML(u.name||u.email)}">${escapeHTML(initials)}</span>`; }
+  }
+  el.innerHTML = `<span class="ico"><svg aria-hidden="true"><use href="#i-card"></use></svg></span><div class="title">${escapeHTML(c.title)}</div><div class="spacer"></div>${assigneeHTML}<button class="btn icon btn-color" title="Цвет карточки" aria-label="Цвет"><svg aria-hidden="true"><use href="#i-palette"></use></svg></button>`;
   el.addEventListener('dblclick', () => openCard(c));
   if(c.color){ el.style.setProperty('--clr', c.color); }
   const colorBtn = el.querySelector('.btn-color');
@@ -1197,6 +1210,9 @@ function renderCard(c){
 
 async function openCard(c){
   state.currentCard = c;
+  // Assignee select
+  await populateAssigneeSelect();
+  if(els.cvAssignee){ els.cvAssignee.value = c.assignee_id ? String(c.assignee_id) : '0'; }
   els.cvTitle.value = c.title || '';
   els.cvDescription.value = c.description || '';
   applyMdToggle(c);
@@ -1215,6 +1231,19 @@ async function openCard(c){
     // Тихо игнорируем ошибку, чтобы пользователь мог редактировать поля
     console.warn('Не удалось загрузить комментарии:', err);
   }
+}
+
+async function populateAssigneeSelect(){
+  const wrap = document.getElementById('assigneeField');
+  if(!els.cvAssignee){ return; }
+  els.cvAssignee.innerHTML = '';
+  const optNone = document.createElement('option'); optNone.value = '0'; optNone.textContent = '— Не назначен —'; els.cvAssignee.appendChild(optNone);
+  const bid = state.currentBoardId;
+  if(!bid){ if(wrap) wrap.hidden = true; return; }
+  if(wrap) wrap.hidden = false;
+  let members = state.boardMembers.get(bid);
+  if(!members){ try{ members = await api.boardMembers(bid); state.boardMembers.set(bid, members||[]); }catch{ members = []; } }
+  for(const u of members||[]){ const o = document.createElement('option'); o.value = String(u.id); o.textContent = u.name || u.email || ('#'+u.id); els.cvAssignee.appendChild(o); }
 }
 
 function applyMdToggle(c){

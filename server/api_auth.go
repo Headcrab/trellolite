@@ -21,6 +21,11 @@ func (a *api) githubEnabled() bool {
 	return getenv("OAUTH_GITHUB_CLIENT_ID", "") != "" && getenv("OAUTH_GITHUB_CLIENT_SECRET", "") != ""
 }
 
+// --- OAuth helpers (Google) ---
+func (a *api) googleEnabled() bool {
+	return getenv("OAUTH_GOOGLE_CLIENT_ID", "") != "" && getenv("OAUTH_GOOGLE_CLIENT_SECRET", "") != ""
+}
+
 func (a *api) setStateCookie(w http.ResponseWriter, state string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "oauth_state",
@@ -121,6 +126,9 @@ func (a *api) handleAuthProviders(w http.ResponseWriter, r *http.Request) {
 	providers := []map[string]string{}
 	if a.githubEnabled() {
 		providers = append(providers, map[string]string{"id": "github", "name": "GitHub"})
+	}
+	if a.googleEnabled() {
+		providers = append(providers, map[string]string{"id": "google", "name": "Google"})
 	}
 	writeJSON(w, 200, map[string]any{"providers": providers})
 }
@@ -226,6 +234,174 @@ func (a *api) handleGithubCallback(w http.ResponseWriter, r *http.Request) {
 	a.setSessionCookie(w, tok, exp)
 	// Redirect to home after successful OAuth login
 	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+// --- Google OAuth ---
+// GET /api/auth/oauth/google/start
+func (a *api) handleGoogleStart(w http.ResponseWriter, r *http.Request) {
+	if !a.googleEnabled() {
+		writeError(w, 404, "provider not configured")
+		return
+	}
+	// state
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	state := base64RawURL(b)
+	a.setStateCookie(w, state)
+
+	clientID := getenv("OAUTH_GOOGLE_CLIENT_ID", "")
+	// Build redirect URI, prefer request host to avoid domain mismatches
+	scheme := "http"
+	if r.Header.Get("X-Forwarded-Proto") == "https" || r.TLS != nil {
+		scheme = "https"
+	}
+	ruEnv := getenv("OAUTH_GOOGLE_REDIRECT_URL", "")
+	redirectURI := ruEnv
+	if redirectURI == "" {
+		redirectURI = scheme + "://" + r.Host + "/api/auth/oauth/google/callback"
+	} else {
+		if u2, err := url.Parse(redirectURI); err == nil {
+			if !strings.EqualFold(u2.Host, r.Host) {
+				a.log.Info("oauth redirect host adjusted to request host", "from", u2.Host, "to", r.Host)
+				redirectURI = scheme + "://" + r.Host + "/api/auth/oauth/google/callback"
+			}
+		}
+	}
+	u, _ := url.Parse("https://accounts.google.com/o/oauth2/v2/auth")
+	q := u.Query()
+	q.Set("client_id", clientID)
+	q.Set("redirect_uri", redirectURI)
+	q.Set("response_type", "code")
+	q.Set("scope", "openid email profile")
+	q.Set("state", state)
+	// Optional UX tweaks: force consent only if needed; we skip access_type/offline
+	u.RawQuery = q.Encode()
+	http.Redirect(w, r, u.String(), http.StatusFound)
+}
+
+// GET /api/auth/oauth/google/callback
+func (a *api) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
+	if !a.googleEnabled() {
+		writeError(w, 404, "provider not configured")
+		return
+	}
+	qs := r.URL.Query()
+	code := qs.Get("code")
+	st := qs.Get("state")
+	if code == "" || st == "" {
+		writeError(w, 400, "bad oauth response")
+		return
+	}
+	if have, err := a.readStateCookie(r); err != nil || have == "" || have != st {
+		writeError(w, 400, "state mismatch")
+		return
+	}
+	// Clear used state cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   a.secureCookie(),
+		SameSite: a.sameSite(),
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+	})
+	token, err := a.googleExchangeToken(r.Context(), code, r)
+	if err != nil {
+		a.log.Error("oauth token", "err", err)
+		writeError(w, 502, "oauth error")
+		return
+	}
+	gu, err := a.googleFetchUser(r.Context(), token)
+	if err != nil {
+		a.log.Error("oauth user", "err", err)
+		writeError(w, 502, "oauth error")
+		return
+	}
+	email := gu.Email
+	if email == "" {
+		// Fallback: synthetic email based on sub
+		email = "google-" + gu.Sub + "@users.noreply.google.com"
+	}
+	name := strings.TrimSpace(gu.Name)
+	if name == "" {
+		name = email
+	}
+	u, err := a.store.EnsureOAuthUser(r.Context(), "google", gu.Sub, email, name)
+	if err != nil {
+		a.log.Error("ensure oauth user", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	tok, exp, err := a.store.CreateSession(r.Context(), u.ID, a.sessionTTL())
+	if err != nil {
+		a.log.Error("create session", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	a.setSessionCookie(w, tok, exp)
+	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+type googleUser struct {
+	Sub           string `json:"sub"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
+	Name          string `json:"name"`
+	Picture       string `json:"picture"`
+}
+
+func (a *api) googleExchangeToken(ctx context.Context, code string, r *http.Request) (string, error) {
+	// Build redirect URI same as in start
+	scheme := "http"
+	if r.Header.Get("X-Forwarded-Proto") == "https" || r.TLS != nil {
+		scheme = "https"
+	}
+	ru := getenv("OAUTH_GOOGLE_REDIRECT_URL", "")
+	redirectURI := ru
+	if redirectURI == "" {
+		redirectURI = scheme + "://" + r.Host + "/api/auth/oauth/google/callback"
+	}
+	data := url.Values{}
+	data.Set("client_id", getenv("OAUTH_GOOGLE_CLIENT_ID", ""))
+	data.Set("client_secret", getenv("OAUTH_GOOGLE_CLIENT_SECRET", ""))
+	data.Set("code", code)
+	data.Set("grant_type", "authorization_code")
+	data.Set("redirect_uri", redirectURI)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://oauth2.googleapis.com/token", bytes.NewBufferString(data.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	var out struct {
+		AccessToken string `json:"access_token"`
+		Error       string `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", err
+	}
+	if out.Error != "" || out.AccessToken == "" {
+		return "", errors.New("oauth token error")
+	}
+	return out.AccessToken, nil
+}
+
+func (a *api) googleFetchUser(ctx context.Context, token string) (googleUser, error) {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://openidconnect.googleapis.com/v1/userinfo", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return googleUser{}, err
+	}
+	defer resp.Body.Close()
+	var gu googleUser
+	if err := json.NewDecoder(resp.Body).Decode(&gu); err != nil {
+		return googleUser{}, err
+	}
+	return gu, nil
 }
 
 // --- GitHub API calls ---

@@ -22,6 +22,7 @@ Trellolite — учебный и референс‑проект, демонст
 - Позиционирование с разрежённой сеткой (sparse ints) и авто‑перепаковкой
 - Опциональные цвета для досок/списков/карточек с быстрым диалогом выбора
 - Базовая аутентификация (email+пароль) и OAuth (GitHub)
+ - Базовая аутентификация (email+пароль) и OAuth (GitHub, Google)
 
 ## Возможности 🚀
 
@@ -115,9 +116,11 @@ Trellolite использует cookie‑сессии. Неавторизова�
 - POST /api/auth/login — войти
 - POST /api/auth/logout — выйти
 - GET /api/auth/me — текущий пользователь (анонимно возвращает `{user:null}`)
-- GET /api/auth/providers — доступные OAuth провайдеры (GitHub)
+- GET /api/auth/providers — доступные OAuth провайдеры (GitHub/Google)
 - GET /api/auth/oauth/github/start — начало OAuth
 - GET /api/auth/oauth/github/callback — коллбэк OAuth
+ - GET /api/auth/oauth/google/start — начало OAuth
+ - GET /api/auth/oauth/google/callback — коллбэк OAuth
  - POST /api/auth/reset — запрос на сброс пароля (dev: magic‑link пишется в логи)
  - POST /api/auth/reset/confirm — подтверждение сброса по токену
 
@@ -214,6 +217,11 @@ OAuth (GitHub):
 - OAUTH_GITHUB_CLIENT_SECRET
 - OAUTH_GITHUB_REDIRECT_URL (например, `http://localhost:8080/api/auth/oauth/github/callback`)
 
+OAuth (Google):
+- OAUTH_GOOGLE_CLIENT_ID
+- OAUTH_GOOGLE_CLIENT_SECRET
+- OAUTH_GOOGLE_REDIRECT_URL (например, `http://localhost:8080/api/auth/oauth/google/callback`)
+
 При наличии настроенных значений GitHub‑провайдера на странице входа появится кнопка «Войти через GitHub». Сессии — cookie httpOnly.
 
 ### Настройка OAuth (GitHub)
@@ -236,6 +244,27 @@ docker compose up -d --build
 ```
 
 Compose автоматически подхватит `.env`. После этого кнопка GitHub появится на странице входа, а полный OAuth‑флоу заработает.
+
+### Настройка OAuth (Google)
+
+1) Создайте OAuth‑клиент в Google Cloud Console: APIs & Services → Credentials → Create Credentials → OAuth client ID (Application type: Web application).
+   - Authorized JavaScript origins: `http://localhost:8080`
+   - Authorized redirect URIs: `http://localhost:8080/api/auth/oauth/google/callback`
+2) Добавьте переменные в `.env`:
+
+```env
+OAUTH_GOOGLE_CLIENT_ID=...
+OAUTH_GOOGLE_CLIENT_SECRET=...
+OAUTH_GOOGLE_REDIRECT_URL=http://localhost:8080/api/auth/oauth/google/callback
+```
+
+3) Перезапустите контейнеры:
+
+```powershell
+docker compose up -d --build
+```
+
+Кнопка Google появится на странице входа, если провайдер сконфигурирован.
 
 ### Rate limiting и dev‑сброс пароля
 

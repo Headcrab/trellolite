@@ -262,3 +262,36 @@ func (a *api) handleGetBoardFull(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, out)
 }
+
+// GET /api/boards/{id}/members
+func (a *api) handleBoardMembers(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	u, errU := a.currentUser(r)
+	if errU != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
+	ok, e := a.store.CanAccessBoard(r.Context(), u.ID, id)
+	if e != nil {
+		a.log.Error("access check", "err", e)
+	}
+	if !ok {
+		writeError(w, 403, "forbidden")
+		return
+	}
+	users, e2 := a.store.BoardMembers(r.Context(), id)
+	if e2 != nil {
+		a.log.Error("board members", "err", e2)
+		writeError(w, 500, "internal error")
+		return
+	}
+	if len(users) == 0 && u != nil {
+		// ensure at least board requester can assign to self
+		users = []User{*u}
+	}
+	writeJSON(w, 200, users)
+}

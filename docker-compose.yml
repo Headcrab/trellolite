@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   db:
     image: postgres:16
@@ -24,14 +26,17 @@ services:
       - "8080:8080"
     environment:
       ADDR: ":8080"
-      DATABASE_URL: "postgres://postgres:postgres@db:5432/trellolite?sslmode=disable"
-      OAUTH_GITHUB_CLIENT_ID: "${OAUTH_GITHUB_CLIENT_ID}"
-      OAUTH_GITHUB_CLIENT_SECRET: "${OAUTH_GITHUB_CLIENT_SECRET}"
-      OAUTH_GITHUB_REDIRECT_URL: "${OAUTH_GITHUB_REDIRECT_URL:-http://localhost:8080/api/auth/oauth/github/callback}"
-      COOKIE_SAMESITE: "${COOKIE_SAMESITE:-lax}"
-      COOKIE_SECURE: "${COOKIE_SECURE:-false}"
-      SESSION_COOKIE_NAME: "${SESSION_COOKIE_NAME:-trellolite_sess}"
-      SESSION_TTL: "${SESSION_TTL:-336h}"
+      DATABASE_URL: postgres://postgres:postgres@db:5432/trellolite?sslmode=disable
+      OAUTH_GITHUB_CLIENT_ID: ${OAUTH_GITHUB_CLIENT_ID}
+      OAUTH_GITHUB_CLIENT_SECRET: ${OAUTH_GITHUB_CLIENT_SECRET}
+      OAUTH_GITHUB_REDIRECT_URL: ${OAUTH_GITHUB_REDIRECT_URL:-http://localhost:8080/api/auth/oauth/github/callback}
+      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID}
+      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET}
+      OAUTH_GOOGLE_REDIRECT_URL: ${OAUTH_GOOGLE_REDIRECT_URL:-http://localhost:8080/api/auth/oauth/google/callback}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-trellolite_sess}
+      SESSION_TTL: ${SESSION_TTL:-336h}
     volumes:
       - ./web:/app/web:ro
 

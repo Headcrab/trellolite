@@ -18,6 +18,8 @@ func (a *api) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/auth/providers", a.handleAuthProviders)
 	mux.HandleFunc("GET /api/auth/oauth/github/start", a.handleGithubStart)
 	mux.HandleFunc("GET /api/auth/oauth/github/callback", a.handleGithubCallback)
+	mux.HandleFunc("GET /api/auth/oauth/google/start", a.handleGoogleStart)
+	mux.HandleFunc("GET /api/auth/oauth/google/callback", a.handleGoogleCallback)
 
 	// Dev password reset (magic link in logs)
 	mux.HandleFunc("POST /api/auth/reset", a.withRateLimit("auth_reset", 10, time.Minute, a.handleResetRequest))
@@ -29,6 +31,7 @@ func (a *api) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/boards/{id}", a.requireAuth(a.handleGetBoard))
 	mux.HandleFunc("GET /api/boards/{id}/full", a.requireAuth(a.handleGetBoardFull))
 	mux.HandleFunc("GET /api/boards/{id}/events", a.requireAuth(a.handleBoardEvents))
+	mux.HandleFunc("GET /api/boards/{id}/members", a.requireAuth(a.handleBoardMembers))
 	mux.HandleFunc("PATCH /api/boards/{id}", a.requireAuth(a.handleUpdateBoard))
 	mux.HandleFunc("POST /api/boards/{id}/move", a.requireAuth(a.handleMoveBoard))
 	mux.HandleFunc("DELETE /api/boards/{id}", a.requireAuth(a.handleDeleteBoard))

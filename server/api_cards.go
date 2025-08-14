@@ -80,6 +80,7 @@ func (a *api) handleUpdateCard(w http.ResponseWriter, r *http.Request) {
 		DueAt           *string `json:"due_at"`
 		Color           *string `json:"color"`
 		DescriptionIsMD *bool   `json:"description_is_md"`
+		AssigneeID      *int64  `json:"assignee_id"`
 	}
 	if err := readJSON(w, r, &req); err != nil {
 		writeError(w, 400, "invalid payload")
@@ -90,7 +91,33 @@ func (a *api) handleUpdateCard(w http.ResponseWriter, r *http.Request) {
 			due = &t
 		}
 	}
-	if err := a.store.UpdateCard(r.Context(), id, req.Title, req.Description, req.Pos, due, req.DescriptionIsMD); err != nil {
+	// Validate assignee belongs to the same board members set (if provided)
+	if req.AssigneeID != nil {
+		if *req.AssigneeID == 0 {
+			// treat 0 as NULL to clear assignee
+			req.AssigneeID = nil
+		} else {
+			// ensure the user is among board members
+			if bid, _, e := a.store.BoardAndListByCard(r.Context(), id); e == nil {
+				members, e2 := a.store.BoardMembers(r.Context(), bid)
+				if e2 == nil {
+					found := false
+					for _, m := range members {
+						if m.ID == *req.AssigneeID {
+							found = true
+							break
+						}
+					}
+					if !found {
+						writeError(w, 400, "assignee must be a board member")
+						return
+					}
+				}
+			}
+		}
+	}
+
+	if err := a.store.UpdateCard(r.Context(), id, req.Title, req.Description, req.Pos, due, req.DescriptionIsMD, req.AssigneeID); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			writeError(w, 404, "not found")
 			return
@@ -106,7 +133,11 @@ func (a *api) handleUpdateCard(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]any{"ok": true})
 	if bid, _, e := a.store.BoardAndListByCard(r.Context(), id); e == nil {
-		a.bus.Publish(Event{Type: "card.updated", Entity: "card", BoardID: bid, Payload: map[string]any{"id": id}})
+		if req.AssigneeID != nil {
+			a.bus.Publish(Event{Type: "card.assignee_changed", Entity: "card", BoardID: bid, Payload: map[string]any{"id": id, "assignee_id": req.AssigneeID}})
+		} else {
+			a.bus.Publish(Event{Type: "card.updated", Entity: "card", BoardID: bid, Payload: map[string]any{"id": id}})
+		}
 	}
 }
 

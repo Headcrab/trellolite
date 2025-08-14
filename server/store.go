@@ -153,6 +153,62 @@ func (s *Store) ProjectMembers(ctx context.Context, projectID int64) ([]User, er
 	return out, rows.Err()
 }
 
+// BoardMembers returns distinct users who have access/participate in the board:
+// - board owner
+// - users from groups that have access to the board
+// - project owner and project members, if the board is linked to a project
+func (s *Store) BoardMembers(ctx context.Context, boardID int64) ([]User, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		with owners as (
+			select u.id, u.email, u.name, coalesce(u.avatar_url,'') as avatar_url, u.is_active, u.is_admin, u.created_at
+			from boards b join users u on u.id = b.created_by
+			where b.id = $1
+		),
+		via_groups as (
+			select u.id, u.email, u.name, coalesce(u.avatar_url,'') as avatar_url, u.is_active, u.is_admin, u.created_at
+			from board_groups bg
+			join user_groups ug on ug.group_id = bg.group_id
+			join users u on u.id = ug.user_id
+			where bg.board_id = $1
+		),
+		project_side as (
+			select u.id, u.email, u.name, coalesce(u.avatar_url,'') as avatar_url, u.is_active, u.is_admin, u.created_at
+			from boards b
+			join projects p on p.id = b.project_id
+			join users u on u.id = p.owner_user_id
+			where b.id = $1 and b.project_id is not null
+			union
+			select u.id, u.email, u.name, coalesce(u.avatar_url,'') as avatar_url, u.is_active, u.is_admin, u.created_at
+			from boards b
+			join project_members pm on pm.project_id = b.project_id
+			join users u on u.id = pm.user_id
+			where b.id = $1 and b.project_id is not null
+		)
+		select distinct id, email, name, avatar_url, is_active, is_admin, created_at
+		from (
+			select * from owners
+			union all
+			select * from via_groups
+			union all
+			select * from project_side
+		) allu
+		order by email
+	`, boardID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) SetBoardProject(ctx context.Context, boardID, projectID int64) error {
 	_, err := s.db.ExecContext(ctx, `update boards set project_id=$1 where id=$2`, projectID, boardID)
 	return err
@@ -289,7 +345,7 @@ func (s *Store) DeleteList(ctx context.Context, id int64) error {
 
 func (s *Store) CardsByList(ctx context.Context, listID int64) ([]Card, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`select id, list_id, title, description, coalesce(color,''), pos, due_at, created_at, coalesce(description_is_md,false)
+		`select id, list_id, title, description, coalesce(color,''), pos, due_at, assignee_user_id, created_at, coalesce(description_is_md,false)
 	 from cards where list_id=$1 order by pos, id`, listID)
 	if err != nil {
 		return nil, err
@@ -298,7 +354,7 @@ func (s *Store) CardsByList(ctx context.Context, listID int64) ([]Card, error) {
 	var out []Card
 	for rows.Next() {
 		var c Card
-		if err := rows.Scan(&c.ID, &c.ListID, &c.Title, &c.Description, &c.Color, &c.Pos, &c.DueAt, &c.CreatedAt, &c.DescriptionIsMD); err != nil {
+		if err := rows.Scan(&c.ID, &c.ListID, &c.Title, &c.Description, &c.Color, &c.Pos, &c.DueAt, &c.AssigneeUserID, &c.CreatedAt, &c.DescriptionIsMD); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -312,9 +368,9 @@ func (s *Store) CreateCard(ctx context.Context, listID int64, title, description
 	var c Card
 	err := s.db.QueryRowContext(ctx,
 		`insert into cards(list_id, title, description, pos, description_is_md) values($1,$2,$3,$4,$5)
-	 returning id, list_id, title, description, coalesce(color,''), pos, due_at, created_at, coalesce(description_is_md,false)`,
+	 returning id, list_id, title, description, coalesce(color,''), pos, due_at, assignee_user_id, created_at, coalesce(description_is_md,false)`,
 		listID, title, description, next, isMD).
-		Scan(&c.ID, &c.ListID, &c.Title, &c.Description, &c.Color, &c.Pos, &c.DueAt, &c.CreatedAt, &c.DescriptionIsMD)
+		Scan(&c.ID, &c.ListID, &c.Title, &c.Description, &c.Color, &c.Pos, &c.DueAt, &c.AssigneeUserID, &c.CreatedAt, &c.DescriptionIsMD)
 	return c, err
 }
 
@@ -758,7 +814,7 @@ func (s *Store) EnsureOAuthUser(ctx context.Context, provider, providerUserID, e
 	return u, nil
 }
 
-func (s *Store) UpdateCard(ctx context.Context, id int64, title *string, description *string, pos *int64, dueAt *time.Time, descriptionIsMD *bool) error {
+func (s *Store) UpdateCard(ctx context.Context, id int64, title *string, description *string, pos *int64, dueAt *time.Time, descriptionIsMD *bool, assigneeUserID *int64) error {
 	q := "update cards set "
 	args := []any{}
 	idx := 1
@@ -786,6 +842,11 @@ func (s *Store) UpdateCard(ctx context.Context, id int64, title *string, descrip
 	if descriptionIsMD != nil {
 		set = append(set, fmt.Sprintf("description_is_md=$%d", idx))
 		args = append(args, *descriptionIsMD)
+		idx++
+	}
+	if assigneeUserID != nil {
+		set = append(set, fmt.Sprintf("assignee_user_id=$%d", idx))
+		args = append(args, *assigneeUserID)
 		idx++
 	}
 	if len(set) == 0 {
