@@ -534,7 +534,7 @@ function openMembersDialogSelf(groupId){
       list.innerHTML = '';
       for(const u of (users||[])){
         const row = document.createElement('div'); row.className='group-row';
-        row.innerHTML = `<span>${escapeHTML(u.name||u.email)} &lt;${escapeHTML(u.email)}&gt;</span><div class="spacer"></div><button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`;
+  row.innerHTML = `<span>${escapeHTML(u.name || ('#'+u.id))}</span><div class="spacer"></div><button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`;
         list.appendChild(row);
       }
       if(status) status.textContent = `Участников: ${(users||[]).length}`;
@@ -553,7 +553,7 @@ function openMembersDialogSelf(groupId){
       for(const u of (users||[])){
         const isMember = memberSet.has(u.id);
         const row = document.createElement('div'); row.className='group-row';
-        row.innerHTML = `<span>${escapeHTML(u.name||u.email)} &lt;${escapeHTML(u.email)}&gt;</span><div class="spacer"></div>` + (isMember? `<button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`: `<button class="btn" data-act="add" data-id="${u.id}">Добавить</button>`);
+  row.innerHTML = `<span>${escapeHTML(u.name || ('#'+u.id))}</span><div class="spacer"></div>` + (isMember? `<button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`: `<button class="btn" data-act="add" data-id="${u.id}">Добавить</button>`);
         list.appendChild(row);
       }
       if(status) status.textContent = `Найдено: ${(users||[]).length}`;
@@ -583,7 +583,7 @@ function openMembersDialog(groupId){
       list.innerHTML = '';
       for(const u of (users||[])){
         const row = document.createElement('div'); row.className='group-row';
-        row.innerHTML = `<span>${escapeHTML(u.name||u.email)} &lt;${escapeHTML(u.email)}&gt;</span><div class="spacer"></div><button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`;
+  row.innerHTML = `<span>${escapeHTML(u.name || ('#'+u.id))}</span><div class="spacer"></div><button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`;
         list.appendChild(row);
       }
       if(status) status.textContent = `Участников: ${(users||[]).length}`;
@@ -600,7 +600,7 @@ function openMembersDialog(groupId){
       for(const u of (users||[])){
         const isMember = memberSet.has(u.id);
         const row = document.createElement('div'); row.className='group-row';
-        row.innerHTML = `<span>${escapeHTML(u.name||u.email)} &lt;${escapeHTML(u.email)}&gt;</span><div class="spacer"></div>` + (isMember? `<button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`: `<button class="btn" data-act="add" data-id="${u.id}">Добавить</button>`);
+  row.innerHTML = `<span>${escapeHTML(u.name || ('#'+u.id))}</span><div class="spacer"></div>` + (isMember? `<button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`: `<button class="btn" data-act="add" data-id="${u.id}">Добавить</button>`);
         list.appendChild(row);
       }
       if(status) status.textContent = `Найдено: ${(users||[]).length}`;
