@@ -444,16 +444,24 @@ async function removeFromGroup(groupId, userId) {
 // Settings
 async function loadSettings() {
   try {
-    // Load OAuth providers
-    const providers = await adminApi.getProviders();
-    const hasGithub = providers.providers && providers.providers.some(p => p.id === 'github');
-    $('githubStatus').textContent = hasGithub ? 'Настроен' : 'Не настроен';
-    $('githubStatus').className = `status ${hasGithub ? 'active' : 'inactive'}`;
-    
-    // Load stats
-    $('totalUsers').textContent = adminState.users.length;
-    $('totalGroups').textContent = adminState.groups.length;
-    $('totalBoards').textContent = '—'; // Would need additional API
+    // Load OAuth providers via admin system endpoint
+    const sys = await fetchJSON('/api/admin/system');
+    const hasGithub = sys?.oauth?.github === true;
+    const hasGoogle = sys?.oauth?.google === true;
+    const smtpConfigured = sys?.smtp?.configured === true;
+
+    const githubEl = document.getElementById('githubStatus');
+    const googleEl = document.getElementById('googleStatus');
+    const smtpEl = document.getElementById('smtpStatus');
+
+    if (githubEl) { githubEl.textContent = hasGithub ? 'Настроен' : 'Не настроен'; githubEl.className = `status ${hasGithub ? 'active' : 'inactive'}`; }
+    if (googleEl) { googleEl.textContent = hasGoogle ? 'Настроен' : 'Не настроен'; googleEl.className = `status ${hasGoogle ? 'active' : 'inactive'}`; }
+    if (smtpEl) { smtpEl.textContent = smtpConfigured ? 'Настроен' : 'Не настроен'; smtpEl.className = `status ${smtpConfigured ? 'active' : 'inactive'}`; }
+
+    // Load stats (basic, using current cached state)
+    document.getElementById('totalUsers').textContent = adminState.users.length;
+    document.getElementById('totalGroups').textContent = adminState.groups.length;
+    document.getElementById('totalBoards').textContent = '—';
   } catch (err) {
     console.error('Failed to load settings:', err);
   }

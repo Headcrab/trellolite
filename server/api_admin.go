@@ -123,6 +123,21 @@ func (a *api) handleAdminListUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, items)
 }
 
+// GET /api/admin/system
+// Returns basic system capabilities/config flags for admin Settings UI
+func (a *api) handleAdminSystemStatus(w http.ResponseWriter, r *http.Request) {
+	smtpConfigured := getenv("SMTP_HOST", "") != "" && getenv("SMTP_PORT", "") != "" && getenv("SMTP_FROM", "") != ""
+	writeJSON(w, 200, map[string]any{
+		"oauth": map[string]bool{
+			"github": a.githubEnabled(),
+			"google": a.googleEnabled(),
+		},
+		"smtp": map[string]bool{
+			"configured": smtpConfigured,
+		},
+	})
+}
+
 // DELETE /api/admin/users/{id}
 func (a *api) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r.PathValue("id"))
