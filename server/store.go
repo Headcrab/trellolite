@@ -1334,11 +1334,13 @@ create table if not exists users(
 		password_hash text not null default '',
 		name text not null default '',
 		avatar_url text,
-		email_verified boolean not null default false,
 		is_active boolean not null default true,
 		is_admin boolean not null default false,
 		created_at timestamptz not null default now()
 );
+
+-- ensure email_verified exists for older installs
+alter table users add column if not exists email_verified boolean not null default false;
 
 create table if not exists oauth_accounts(
 		id bigserial primary key,
