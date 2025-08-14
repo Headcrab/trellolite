@@ -684,10 +684,15 @@ func (s *Store) CreateUser(ctx context.Context, email, passwordHash, name string
 func (s *Store) userCredsByEmail(ctx context.Context, email string) (User, string, error) {
 	var u User
 	var hash string
-	err := s.db.QueryRowContext(ctx, `select id, email, name, coalesce(avatar_url,''), is_active, is_admin, created_at, password_hash from users where lower(email)=lower($1)`, email).
-		Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.CreatedAt, &hash)
+	var verified bool
+	err := s.db.QueryRowContext(ctx, `select id, email, name, coalesce(avatar_url,''), is_active, is_admin, created_at, password_hash, coalesce(email_verified,false)
+		from users where lower(email)=lower($1)`, email).
+		Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.CreatedAt, &hash, &verified)
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, "", ErrNotFound
+	}
+	if err == nil && !verified {
+		return User{}, "", errors.New("email_not_verified")
 	}
 	return u, hash, err
 }
@@ -756,6 +761,15 @@ func (s *Store) UpdateUserPasswordByEmail(ctx context.Context, email, newPasswor
 	return nil
 }
 
+// MarkEmailVerified sets users.email_verified=true by email (case-insensitive)
+func (s *Store) MarkEmailVerified(ctx context.Context, email string) error {
+	if strings.TrimSpace(email) == "" {
+		return nil
+	}
+	_, err := s.db.ExecContext(ctx, `update users set email_verified=true where lower(email)=lower($1)`, email)
+	return err
+}
+
 // get user by email (without password hash)
 func (s *Store) userByEmail(ctx context.Context, email string) (User, error) {
 	var u User
@@ -794,8 +808,8 @@ func (s *Store) EnsureOAuthUser(ctx context.Context, provider, providerUserID, e
 	defer func() { _ = tx.Rollback() }()
 	if notFound {
 		// Create user
-		err = tx.QueryRowContext(ctx, `insert into users(email, password_hash, name) values($1,$2,$3)
-			returning id, email, name, coalesce(avatar_url,''), is_active, is_admin, created_at`, email, "", name).
+		err = tx.QueryRowContext(ctx, `insert into users(email, password_hash, name, email_verified) values($1,$2,$3,true)
+				returning id, email, name, coalesce(avatar_url,''), is_active, is_admin, created_at`, email, "", name).
 			Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.CreatedAt)
 		if err != nil {
 			return User{}, err
@@ -812,6 +826,31 @@ func (s *Store) EnsureOAuthUser(ctx context.Context, provider, providerUserID, e
 		return User{}, err
 	}
 	return u, nil
+}
+
+// DeleteUser removes a user and nullifies ownership references to satisfy FKs.
+// It sets projects.owner_user_id = NULL for projects owned by the user, then deletes the user.
+func (s *Store) DeleteUser(ctx context.Context, id int64) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `update projects set owner_user_id = null where owner_user_id = $1`, id); err != nil {
+		return err
+	}
+	res, err := tx.ExecContext(ctx, `delete from users where id=$1`, id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Store) UpdateCard(ctx context.Context, id int64, title *string, description *string, pos *int64, dueAt *time.Time, descriptionIsMD *bool, assigneeUserID *int64) error {
@@ -1295,6 +1334,7 @@ create table if not exists users(
 		password_hash text not null default '',
 		name text not null default '',
 		avatar_url text,
+		email_verified boolean not null default false,
 		is_active boolean not null default true,
 		is_admin boolean not null default false,
 		created_at timestamptz not null default now()

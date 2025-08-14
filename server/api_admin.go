@@ -122,3 +122,28 @@ func (a *api) handleAdminListUsers(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, items)
 }
+
+// DELETE /api/admin/users/{id}
+func (a *api) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, 400, "bad id")
+		return
+	}
+	// don't allow deleting yourself from admin panel
+	me, err := a.currentUser(r)
+	if err == nil && me != nil && me.ID == id {
+		writeError(w, 400, "cannot delete yourself")
+		return
+	}
+	if err := a.store.DeleteUser(r.Context(), id); err != nil {
+		if err == ErrNotFound {
+			writeError(w, 404, "not found")
+			return
+		}
+		a.log.Error("admin delete user", "err", err)
+		writeError(w, 500, "internal error")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}

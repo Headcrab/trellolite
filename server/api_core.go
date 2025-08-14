@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
+	"net/mail"
+	"net/smtp"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,10 +24,13 @@ type api struct {
 	// dev password reset tokens (in-memory)
 	prMu  sync.Mutex
 	prTok map[string]resetReq
+	// dev email verification tokens (in-memory)
+	evMu  sync.Mutex
+	evTok map[string]verifyReq
 }
 
 func newAPI(store *Store, log *slog.Logger) *api {
-	return &api{store: store, log: log, bus: NewEventBus(), rl: map[string]*rateBucket{}, prTok: map[string]resetReq{}}
+	return &api{store: store, log: log, bus: NewEventBus(), rl: map[string]*rateBucket{}, prTok: map[string]resetReq{}, evTok: map[string]verifyReq{}}
 }
 
 type rateBucket struct {
@@ -71,6 +77,7 @@ func (a *api) putResetToken(email, token string, ttl time.Duration) {
 	defer a.prMu.Unlock()
 	a.prTok[token] = resetReq{Email: email, ExpiresAt: time.Now().Add(ttl)}
 }
+
 func (a *api) takeResetToken(token string) (string, bool) {
 	a.prMu.Lock()
 	defer a.prMu.Unlock()
@@ -84,6 +91,89 @@ func (a *api) takeResetToken(token string) (string, bool) {
 	}
 	delete(a.prTok, token)
 	return req.Email, true
+}
+
+// email verification token storage (dev)
+type verifyReq struct {
+	Email     string
+	ExpiresAt time.Time
+}
+
+func (a *api) putVerifyToken(email, token string, ttl time.Duration) {
+	a.evMu.Lock()
+	defer a.evMu.Unlock()
+	a.evTok[token] = verifyReq{Email: email, ExpiresAt: time.Now().Add(ttl)}
+}
+func (a *api) takeVerifyToken(token string) (string, bool) {
+	a.evMu.Lock()
+	defer a.evMu.Unlock()
+	req, ok := a.evTok[token]
+	if !ok {
+		return "", false
+	}
+	if time.Now().After(req.ExpiresAt) {
+		delete(a.evTok, token)
+		return "", false
+	}
+	delete(a.evTok, token)
+	return req.Email, true
+}
+
+// sendEmail sends a plain-text email via SMTP if SMTP_* env vars are configured.
+// Required: SMTP_HOST, SMTP_PORT, SMTP_FROM. Optional: SMTP_USERNAME, SMTP_PASSWORD.
+func (a *api) sendEmail(to, subject, body string) error {
+	host := getenv("SMTP_HOST", "")
+	port := getenv("SMTP_PORT", "")
+	from := getenv("SMTP_FROM", "")
+	if host == "" || port == "" || from == "" {
+		return nil // not configured; treat as no-op in dev
+	}
+	// normalize From: remove wrapping quotes if present in env
+	from = strings.Trim(from, "\"'")
+	// Parse address to separate envelope sender and header
+	var envelopeFrom string
+	var headerFrom string
+	if addr, err := mail.ParseAddress(from); err == nil {
+		envelopeFrom = addr.Address
+		headerFrom = addr.String()
+	} else {
+		envelopeFrom = from
+		headerFrom = from
+	}
+
+	addr := host + ":" + port
+	user := getenv("SMTP_USERNAME", "")
+	pass := getenv("SMTP_PASSWORD", "")
+	var auth smtp.Auth
+	if user != "" {
+		auth = smtp.PlainAuth("", user, pass, host)
+	}
+	// Build headers
+	subj := mime.BEncoding.Encode("UTF-8", subject)
+	date := time.Now().Format(time.RFC1123Z)
+	// crude Message-ID using domain part of envelopeFrom if available
+	msgIDDomain := "localhost"
+	if i := strings.LastIndex(envelopeFrom, "@"); i > 0 && i+1 < len(envelopeFrom) {
+		msgIDDomain = envelopeFrom[i+1:]
+	}
+	msgID := "<" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@" + msgIDDomain + ">"
+	msg := "From: " + headerFrom + "\r\n" +
+		"To: " + to + "\r\n" +
+		"Subject: " + subj + "\r\n" +
+		"Date: " + date + "\r\n" +
+		"Message-ID: " + msgID + "\r\n" +
+		"MIME-Version: 1.0\r\n" +
+		"Content-Type: text/plain; charset=UTF-8\r\n" +
+		"Content-Transfer-Encoding: 8bit\r\n\r\n" +
+		body + "\r\n"
+	err := smtp.SendMail(addr, auth, envelopeFrom, []string{to}, []byte(msg))
+	if err != nil {
+		a.log.Error("smtp send failed", "err", err)
+	}
+	if err == nil {
+		a.log.Info("smtp sent", "to", to, "subject", subject)
+	}
+	return err
 }
 
 func parseID(s string) (int64, error) { return strconv.ParseInt(s, 10, 64) }

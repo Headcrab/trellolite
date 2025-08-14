@@ -218,6 +218,11 @@ OAuth (GitHub):
 - OAUTH_GITHUB_REDIRECT_URL (например, `http://localhost:8080/api/auth/oauth/github/callback`)
 
 OAuth (Google):
+SMTP (для писем подтверждения/сброса):
+- SMTP_HOST / SMTP_PORT
+- SMTP_FROM
+- SMTP_USERNAME / SMTP_PASSWORD (опционально)
+
 - OAUTH_GOOGLE_CLIENT_ID
 - OAUTH_GOOGLE_CLIENT_SECRET
 - OAUTH_GOOGLE_REDIRECT_URL (например, `http://localhost:8080/api/auth/oauth/google/callback`)

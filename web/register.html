@@ -90,18 +90,18 @@
       btn.textContent = 'Создаём…';
       btn.disabled = true;
       try {
-        const res = await fetch('/api/auth/register', {
+  const res = await fetch('/api/auth/register', {
           method:'POST',
           headers:{'Content-Type':'application/json'},
           credentials:'include',
           body: JSON.stringify({ name, email, password })
         });
-        if (!res.ok){
+  if (!res.ok){
           let msg = 'Ошибка регистрации';
           try { const data = await res.json(); if (data && data.error) msg = data.error; } catch {}
           throw new Error(msg);
         }
-        location.replace('/');
+  showError('Почта указана. Проверьте логи сервера для dev‑ссылки подтверждения (или подождите письмо в проде). После подтверждения зайдите на страницу входа.');
       } catch (err){
         showError(err.message || 'Ошибка сети');
       } finally {

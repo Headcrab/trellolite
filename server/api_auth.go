@@ -71,15 +71,18 @@ func (a *api) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "cannot create user")
 		return
 	}
-	// session
-	token, exp, err := a.store.CreateSession(r.Context(), u.ID, a.sessionTTL())
-	if err != nil {
-		a.log.Error("create session", "err", err)
-		writeError(w, 500, "internal error")
-		return
-	}
-	a.setSessionCookie(w, token, exp)
-	writeJSON(w, 201, map[string]any{"ok": true, "user": u})
+	// Email verification: generate token and log magic-link (dev)
+	b := make([]byte, 24)
+	_, _ = rand.Read(b)
+	tok := base64.RawURLEncoding.EncodeToString(b)
+	a.putVerifyToken(u.Email, tok, 30*time.Minute)
+	host := r.Host
+	// Provide link to login page which will handle #verify=...
+	link := "http://" + host + "/web/login.html#verify=" + tok
+	// Try to send email if SMTP configured
+	_ = a.sendEmail(u.Email, "Подтверждение почты — Trellolite", "Здравствуйте,\n\nПерейдите по ссылке, чтобы подтвердить почту:\n"+link+"\n\nЕсли вы не регистрировались, просто игнорируйте это письмо.")
+	a.log.Info("email verify link (dev)", "email", u.Email, "token", tok, "url", link)
+	writeJSON(w, 202, map[string]any{"ok": true, "pending_verification": true})
 }
 
 func (a *api) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -90,6 +93,10 @@ func (a *api) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	u, err := a.store.Authenticate(r.Context(), req.Email, req.Password)
 	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "email_not_verified") {
+			writeError(w, 403, "email not verified")
+			return
+		}
 		writeError(w, 401, "invalid credentials")
 		return
 	}
@@ -119,6 +126,30 @@ func (a *api) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"user": u})
+}
+
+// POST /api/auth/verify/confirm {token}
+func (a *api) handleVerifyConfirm(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := readJSON(w, r, &req); err != nil || strings.TrimSpace(req.Token) == "" {
+		writeError(w, 400, "invalid payload")
+		return
+	}
+	email, ok := a.takeVerifyToken(strings.TrimSpace(req.Token))
+	if !ok {
+		writeError(w, 400, "invalid token")
+		return
+	}
+	if strings.TrimSpace(email) != "" {
+		if err := a.store.MarkEmailVerified(r.Context(), email); err != nil {
+			a.log.Error("verify email", "err", err)
+			writeError(w, 500, "internal error")
+			return
+		}
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
 // Providers list for UI

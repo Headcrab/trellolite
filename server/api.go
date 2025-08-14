@@ -24,6 +24,7 @@ func (a *api) routes(mux *http.ServeMux) {
 	// Dev password reset (magic link in logs)
 	mux.HandleFunc("POST /api/auth/reset", a.withRateLimit("auth_reset", 10, time.Minute, a.handleResetRequest))
 	mux.HandleFunc("POST /api/auth/reset/confirm", a.withRateLimit("auth_reset", 20, time.Minute, a.handleResetConfirm))
+	mux.HandleFunc("POST /api/auth/verify/confirm", a.withRateLimit("auth_verify", 20, time.Minute, a.handleVerifyConfirm))
 
 	mux.HandleFunc("GET /api/health", a.handleHealth)
 	mux.HandleFunc("GET /api/boards", a.handleListBoards)
@@ -74,6 +75,7 @@ func (a *api) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/admin/groups/{id}/users", a.requireAdmin(a.handleAdminAddUserToGroup))
 	mux.HandleFunc("DELETE /api/admin/groups/{id}/users/{uid}", a.requireAdmin(a.handleAdminRemoveUserFromGroup))
 	mux.HandleFunc("GET /api/admin/users", a.requireAdmin(a.handleAdminListUsers))
+	mux.HandleFunc("DELETE /api/admin/users/{id}", a.requireAdmin(a.handleAdminDeleteUser))
 
 	// Projects
 	mux.HandleFunc("GET /api/projects", a.requireAuth(a.handleListProjects))

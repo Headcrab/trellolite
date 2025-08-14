@@ -168,8 +168,9 @@
 
     function parseHash(){
       const h = location.hash || '';
-      const m = h.match(/#reset=([^&]+)/);
-      return m ? decodeURIComponent(m[1]) : '';
+  const m1 = h.match(/#reset=([^&]+)/);
+  const m2 = h.match(/#verify=([^&]+)/);
+  return { reset: m1 ? decodeURIComponent(m1[1]) : '', verify: m2 ? decodeURIComponent(m2[1]) : '' };
     }
 
     function switchToResetMode(on){
@@ -178,9 +179,9 @@
       qs('#loginSub').textContent = on ? 'Смена пароля' : 'Добро пожаловать! Введите email и пароль, чтобы продолжить.';
     }
 
-    async function onResetSubmit(e){
+  async function onResetSubmit(e){
       e.preventDefault(); clearError();
-      const t = parseHash(); if (!t) return showError('Токен не найден в URL.');
+  const { reset: t } = parseHash(); if (!t) return showError('Токен не найден в URL.');
       const p1 = qs('#newpass').value, p2 = qs('#newpass2').value;
       if (!p1 || p1.length < 6) return showError('Пароль должен быть не короче 6 символов.');
       if (p1 !== p2) return showError('Пароли не совпадают.');
@@ -237,7 +238,15 @@
       }).catch(()=>{});
 
       // If magic reset token in URL, switch UI
-      if (parseHash()) switchToResetMode(true);
+      const ph = parseHash();
+      if (ph.reset) switchToResetMode(true);
+      // If verify token present, confirm and then suggest login
+      if (ph.verify){
+        fetch('/api/auth/verify/confirm', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: ph.verify }) })
+          .then(r=>r.json().catch(()=>({})))
+          .then(()=>{ showError('Email подтверждён. Теперь можно войти.'); location.hash=''; })
+          .catch(()=>{ showError('Не удалось подтвердить email.'); });
+      }
       // If we return from OAuth flow or just in case, start watcher and also react on focus
       // BUT: only if we're still on login page, not transitioning to register
       try { 
