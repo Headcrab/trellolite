@@ -54,6 +54,7 @@ type User struct {
 	AvatarURL string    `json:"avatar_url,omitempty"`
 	IsActive  bool      `json:"is_active"`
 	IsAdmin   bool      `json:"is_admin"`
+	EmailVerified bool   `json:"email_verified"`
 	CreatedAt time.Time `json:"created_at"`
 }
 

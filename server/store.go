@@ -136,7 +136,7 @@ func (s *Store) RemoveProjectMember(ctx context.Context, projectID, userID int64
 }
 
 func (s *Store) ProjectMembers(ctx context.Context, projectID int64) ([]User, error) {
-	rows, err := s.db.QueryContext(ctx, `select u.id, u.email, u.name, coalesce(u.avatar_url,''), u.is_active, u.is_admin, u.created_at
+	rows, err := s.db.QueryContext(ctx, `select u.id, u.email, u.name, coalesce(u.avatar_url,''), u.is_active, u.is_admin, coalesce(u.email_verified,false), u.created_at
 		from project_members pm join users u on u.id = pm.user_id where pm.project_id=$1 order by u.email`, projectID)
 	if err != nil {
 		return nil, err
@@ -145,7 +145,7 @@ func (s *Store) ProjectMembers(ctx context.Context, projectID int64) ([]User, er
 	var out []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.EmailVerified, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
@@ -160,31 +160,31 @@ func (s *Store) ProjectMembers(ctx context.Context, projectID int64) ([]User, er
 func (s *Store) BoardMembers(ctx context.Context, boardID int64) ([]User, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		with owners as (
-			select u.id, u.email, u.name, coalesce(u.avatar_url,'') as avatar_url, u.is_active, u.is_admin, u.created_at
+			select u.id, u.email, u.name, coalesce(u.avatar_url,'') as avatar_url, u.is_active, u.is_admin, coalesce(u.email_verified,false) as email_verified, u.created_at
 			from boards b join users u on u.id = b.created_by
 			where b.id = $1
 		),
 		via_groups as (
-			select u.id, u.email, u.name, coalesce(u.avatar_url,'') as avatar_url, u.is_active, u.is_admin, u.created_at
+			select u.id, u.email, u.name, coalesce(u.avatar_url,'') as avatar_url, u.is_active, u.is_admin, coalesce(u.email_verified,false) as email_verified, u.created_at
 			from board_groups bg
 			join user_groups ug on ug.group_id = bg.group_id
 			join users u on u.id = ug.user_id
 			where bg.board_id = $1
 		),
 		project_side as (
-			select u.id, u.email, u.name, coalesce(u.avatar_url,'') as avatar_url, u.is_active, u.is_admin, u.created_at
+			select u.id, u.email, u.name, coalesce(u.avatar_url,'') as avatar_url, u.is_active, u.is_admin, coalesce(u.email_verified,false) as email_verified, u.created_at
 			from boards b
 			join projects p on p.id = b.project_id
 			join users u on u.id = p.owner_user_id
 			where b.id = $1 and b.project_id is not null
 			union
-			select u.id, u.email, u.name, coalesce(u.avatar_url,'') as avatar_url, u.is_active, u.is_admin, u.created_at
+			select u.id, u.email, u.name, coalesce(u.avatar_url,'') as avatar_url, u.is_active, u.is_admin, coalesce(u.email_verified,false) as email_verified, u.created_at
 			from boards b
 			join project_members pm on pm.project_id = b.project_id
 			join users u on u.id = pm.user_id
 			where b.id = $1 and b.project_id is not null
 		)
-		select distinct id, email, name, avatar_url, is_active, is_admin, created_at
+		select distinct id, email, name, avatar_url, is_active, is_admin, email_verified, created_at
 		from (
 			select * from owners
 			union all
@@ -201,7 +201,7 @@ func (s *Store) BoardMembers(ctx context.Context, boardID int64) ([]User, error)
 	var out []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.EmailVerified, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
@@ -532,7 +532,7 @@ func (s *Store) DeleteGroup(ctx context.Context, id int64) error {
 }
 
 func (s *Store) GroupUsers(ctx context.Context, groupID int64) ([]User, error) {
-	rows, err := s.db.QueryContext(ctx, `select u.id, u.email, u.name, coalesce(u.avatar_url,''), u.is_active, u.is_admin, u.created_at
+	rows, err := s.db.QueryContext(ctx, `select u.id, u.email, u.name, coalesce(u.avatar_url,''), u.is_active, u.is_admin, coalesce(u.email_verified,false), u.created_at
 			from user_groups ug join users u on u.id = ug.user_id where ug.group_id=$1 order by u.email`, groupID)
 	if err != nil {
 		return nil, err
@@ -541,7 +541,7 @@ func (s *Store) GroupUsers(ctx context.Context, groupID int64) ([]User, error) {
 	var out []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.EmailVerified, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
@@ -573,10 +573,10 @@ func (s *Store) ListUsers(ctx context.Context, query string, limit int) ([]User,
 	var err error
 	q := strings.TrimSpace(query)
 	if q == "" {
-		rows, err = s.db.QueryContext(ctx, `select id, email, name, coalesce(avatar_url,''), is_active, is_admin, created_at from users order by id desc limit $1`, limit)
+		rows, err = s.db.QueryContext(ctx, `select id, email, name, coalesce(avatar_url,''), is_active, is_admin, coalesce(email_verified,false), created_at from users order by id desc limit $1`, limit)
 	} else {
 		like := "%" + q + "%"
-		rows, err = s.db.QueryContext(ctx, `select id, email, name, coalesce(avatar_url,''), is_active, is_admin, created_at from users where email ilike $1 or name ilike $1 order by email limit $2`, like, limit)
+		rows, err = s.db.QueryContext(ctx, `select id, email, name, coalesce(avatar_url,''), is_active, is_admin, coalesce(email_verified,false), created_at from users where email ilike $1 or name ilike $1 order by email limit $2`, like, limit)
 	}
 	if err != nil {
 		return nil, err
@@ -585,7 +585,7 @@ func (s *Store) ListUsers(ctx context.Context, query string, limit int) ([]User,
 	var out []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.EmailVerified, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
@@ -714,10 +714,10 @@ func (s *Store) CreateSession(ctx context.Context, userID int64, ttl time.Durati
 
 func (s *Store) UserBySession(ctx context.Context, token string) (User, error) {
 	var u User
-	err := s.db.QueryRowContext(ctx, `select u.id, u.email, u.name, coalesce(u.avatar_url,''), u.is_active, u.is_admin, u.created_at
+	err := s.db.QueryRowContext(ctx, `select u.id, u.email, u.name, coalesce(u.avatar_url,''), u.is_active, u.is_admin, coalesce(u.email_verified,false), u.created_at
 		from sessions s join users u on u.id=s.user_id
 		where s.token=$1 and s.expires_at > now()`, token).
-		Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.CreatedAt)
+		Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.EmailVerified, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, ErrNotFound
 	}

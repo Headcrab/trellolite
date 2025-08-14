@@ -192,6 +192,7 @@ function renderUsers() {
       <td>${escapeHtml(user.email)}</td>
       <td>${formatDate(user.created_at)}</td>
       <td><span class="status ${user.is_admin ? 'active' : 'inactive'}">${user.is_admin ? 'Да' : 'Нет'}</span></td>
+      <td><span class="status ${user.email_verified ? 'active' : 'inactive'}">${user.email_verified ? 'Подтв.' : 'Не подтв.'}</span></td>
       <td>
         <div class="table-actions">
           <button class="btn btn-sm btn-edit" data-action="edit" data-id="${user.id}">Изменить</button>
@@ -220,6 +221,19 @@ function openUserDialog(user = null) {
   $('userEmail').value = isEdit ? user.email : '';
   $('userPassword').value = '';
   $('userIsAdmin').checked = isEdit ? user.is_admin : false;
+  const badge = $('userEmailVerifiedBadge');
+  if (badge) {
+    if (isEdit) {
+      const ok = !!user.email_verified;
+      badge.textContent = ok ? 'Почта подтверждена' : 'Почта не подтверждена';
+      badge.className = `status ${ok ? 'active' : 'inactive'}`;
+      badge.style.display = '';
+    } else {
+      badge.textContent = '—';
+      badge.className = 'status';
+      badge.style.display = 'none';
+    }
+  }
   
   // Hide password field for existing users
   const passwordField = $('passwordField');
