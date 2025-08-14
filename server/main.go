@@ -90,6 +90,11 @@ func main() {
 	// Static assets under /web/
 	mux.Handle("GET /web/", http.StripPrefix("/web/", fs))
 
+	// Public legal page
+	mux.HandleFunc("GET /privacy", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./web/privacy.html")
+	})
+
 	api := newAPI(store, log)
 	api.routes(mux)
 
