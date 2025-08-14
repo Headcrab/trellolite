@@ -53,3 +53,5 @@ web/.cache/
 # Misc
 *.sql
 *.dump
+logo_.png
+logo.png
