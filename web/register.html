@@ -10,43 +10,44 @@
   <title>Регистрация — Trellolite</title>
   <link rel="stylesheet" href="/web/styles.css" />
   <link rel="stylesheet" href="/web/auth.css" />
+  <script src="/web/i18n/i18n.js" defer></script>
 </head>
 <body>
   <main class="auth-page">
     <section class="auth-card" role="form" aria-labelledby="regTitle">
-      <h1 id="regTitle">Регистрация</h1>
-      <p class="sub">Создайте аккаунт, чтобы сохранять ваши доски и работать совместно.</p>
+  <h1 id="regTitle" data-t="auth.register.title">Регистрация</h1>
+  <p class="sub" data-t="auth.register.subtitle">Создайте аккаунт, чтобы сохранять ваши доски и работать совместно.</p>
 
       <div id="error" class="error" aria-live="polite" aria-hidden="true"></div>
 
       <form id="form" novalidate>
         <div class="field">
-          <label for="name">Имя</label>
+          <label for="name" data-t="auth.register.name">Имя</label>
           <div class="input-wrap">
-            <input class="input" id="name" name="name" type="text" autocomplete="name" placeholder="Иван Иванов" required autofocus />
+            <input class="input" id="name" name="name" type="text" autocomplete="name" placeholder="" data-t-placeholder="auth.register.example_name" required autofocus />
           </div>
         </div>
         <div class="field">
-          <label for="email">Email</label>
+          <label for="email" data-t="auth.login.email">Email</label>
           <div class="input-wrap">
-            <input class="input" id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required />
+            <input class="input" id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="" data-t-placeholder="auth.register.email_placeholder" required />
           </div>
         </div>
         <div class="field">
-          <label for="password">Пароль</label>
+          <label for="password" data-t="auth.login.password">Пароль</label>
           <div class="input-wrap">
             <input class="input" id="password" name="password" type="password" autocomplete="new-password" minlength="6" placeholder="Минимум 6 символов" required />
-            <button type="button" id="togglePass" class="toggle-pass" aria-pressed="false" aria-label="Показать пароль">Показать</button>
+            <button type="button" id="togglePass" class="toggle-pass" aria-pressed="false" aria-label="" data-t-aria-label="auth.login.show" data-t="auth.login.show">Показать</button>
           </div>
         </div>
         <div class="actions actions-primary">
-          <button class="btn primary" id="btnRegister" type="submit">Создать аккаунт</button>
+          <button class="btn primary" id="btnRegister" type="submit" data-t="auth.register.submit">Создать аккаунт</button>
         </div>
         <div class="actions actions-secondary">
-          <a class="btn" href="/web/login.html" role="button" aria-label="Перейти ко входу">Вход</a>
+          <a class="btn" href="/web/login.html" role="button" aria-label="" data-t-aria-label="auth.login.title" data-t="auth.register.to_login">Вход</a>
         </div>
         <div class="form-footer">
-          <a href="/privacy" rel="nofollow">Политика конфиденциальности</a>
+          <a href="/privacy" rel="nofollow" data-t="auth.login.privacy">Политика конфиденциальности</a>
         </div>
       </form>
     </section>
@@ -75,7 +76,12 @@
       const show = inp.type === 'password';
       inp.type = show ? 'text' : 'password';
       btn.setAttribute('aria-pressed', String(show));
-      btn.textContent = show ? 'Скрыть' : 'Показать';
+      if (window.t) {
+        btn.textContent = show ? t('auth.login.hide') : t('auth.login.show');
+        btn.setAttribute('aria-label', show ? t('auth.login.hide') : t('auth.login.show'));
+      } else {
+        btn.textContent = show ? 'Скрыть' : 'Показать';
+      }
     }
 
     async function onSubmit(e){
@@ -84,13 +90,13 @@
       const name = qs('#name').value.trim();
       const email = qs('#email').value.trim();
       const password = qs('#password').value;
-      if (!name) return showError('Укажите имя.');
-      if (!emailValid(email)) return showError('Укажите корректный email.');
-      if (!password || password.length < 6) return showError('Пароль должен быть не короче 6 символов.');
+  if (!name) return showError(window.t ? t('auth.register.need_name') : 'Укажите имя.');
+  if (!emailValid(email)) return showError(window.t ? t('auth.login.valid_email') : 'Укажите корректный email.');
+  if (!password || password.length < 6) return showError(window.t ? t('auth.register.short_pass') : 'Пароль должен быть не короче 6 символов.');
 
       const btn = qs('#btnRegister');
       const prev = btn.textContent;
-      btn.textContent = 'Создаём…';
+  btn.textContent = window.t ? t('auth.register.creating') : 'Создаём…';
       btn.disabled = true;
       try {
   const res = await fetch('/api/auth/register', {
@@ -100,13 +106,13 @@
           body: JSON.stringify({ name, email, password })
         });
   if (!res.ok){
-          let msg = 'Ошибка регистрации';
+    let msg = window.t ? t('auth.register.reg_error') : 'Ошибка регистрации';
           try { const data = await res.json(); if (data && data.error) msg = data.error; } catch {}
           throw new Error(msg);
         }
-  showError('Почта указана. Проверьте логи сервера для dev‑ссылки подтверждения (или подождите письмо в проде). После подтверждения зайдите на страницу входа.');
+  showError(window.t ? t('auth.register.post_reg') : 'Почта указана. Проверьте логи сервера для dev‑ссылки подтверждения (или подождите письмо в прода). После подтверждения зайдите на страницу входа.');
       } catch (err){
-        showError(err.message || 'Ошибка сети');
+  showError(err.message || (window.t ? t('auth.login.network_error') : 'Ошибка сети'));
       } finally {
         btn.disabled = false; btn.textContent = prev;
       }

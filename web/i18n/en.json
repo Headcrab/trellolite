@@ -1,0 +1,312 @@
+{
+  "app": {
+    "brand": "Trellolite",
+    "search": {
+      "placeholder": "Search",
+      "boards_aria": "Search boards"
+    },
+    "theme": {
+      "toggle": "Toggle theme"
+    },
+    "menu": {
+      "profile": "Profile",
+      "settings": "Settings",
+      "admin": "Administration",
+      "logout": "Log out"
+    },
+    "sidebar": {
+      "boards": "Boards",
+      "mine": "Mine",
+      "groups": "Groups",
+  "expand": "Expand panel",
+  "collapse": "Collapse panel",
+      "new_board": "New board",
+      "groups_panel": "Groups…",
+      "drag_board": "Drag board",
+      "color": "Color"
+    },
+    "board": {
+      "access": "Board access for groups",
+      "rename": "Rename board",
+      "delete": "Delete board",
+      "new_list": "New list",
+      "policy": "Privacy",
+      "loading": "Loading…",
+      "load_error": "Load error"
+    },
+    "dialogs": {
+      "ok": "OK",
+      "cancel": "Cancel",
+      "apply": "Apply",
+      "save": "Save",
+      "close": "Close",
+      "confirm": "Confirmation",
+      "are_you_sure": "Are you sure?",
+      "input": { "title": "Input", "label": "Value" },
+      "select": { "label": "Select" },
+      "color": {
+        "title": "Color",
+        "none": "No color",
+        "red": "Red",
+        "orange": "Orange",
+        "green": "Green",
+        "blue": "Blue",
+        "violet": "Violet",
+        "pink": "Pink",
+        "teal": "Teal",
+        "crimson": "Crimson",
+        "custom": "Custom color"
+      },
+      "datetime": {
+        "title": "Date and time",
+        "prev": "Previous month",
+        "next": "Next month",
+        "hours": "Hours",
+        "minutes": "Minutes",
+        "clear": "Clear",
+        "apply": "Apply",
+        "cancel": "Cancel",
+        "month_names": ["January","February","March","April","May","June","July","August","September","October","November","December"],
+        "dow": ["Mo","Tu","We","Th","Fr","Sa","Su"]
+      },
+      "groups": {
+        "title": "Board access for groups",
+        "save": "Save",
+        "empty": "You are not in any groups.",
+        "error": "Failed to load groups"
+      },
+      "members": {
+        "title": "Group members",
+        "search": "Search user by name",
+        "status": {
+          "count": "Members: {n}",
+          "found": "Found: {n}",
+          "empty": "Empty.",
+          "not_found": "Nothing found.",
+          "error": "Error: {msg}",
+          "search_error": "Search error: {msg}"
+        },
+        "add": "Add",
+        "remove": "Remove",
+        "close": "Close"
+      },
+      "card": {
+        "new": "New card",
+        "title": "Title",
+        "description": "Description",
+        "placeholder_title": "Task name",
+        "placeholder_desc": "Describe the task…",
+        "due": "Due",
+        "assignee": "Assignee",
+  "not_assigned": "— Not assigned —",
+        "comments": "Comments",
+        "add_comment": "Add",
+        "create": "Create",
+        "save": "Save"
+      },
+      "list": {
+        "new": "New list",
+        "title": "Title"
+      },
+      "board_new": {
+        "title": "New board",
+        "name": "Name",
+        "project": "Project",
+        "no_project": "(no project)",
+        "new_project": "New project…",
+        "create": "Create"
+      }
+    },
+    "ctx": {
+      "open_edit": "Open/Edit",
+      "duplicate_card": "Duplicate card",
+      "move": "Move…",
+      "color": "Color…",
+      "delete_card": "Delete card",
+      "add_card": "Add card",
+      "rename_list": "Rename list",
+      "duplicate_list": "Duplicate list",
+      "delete_list": "Delete list",
+      "open_board": "Open board",
+      "rename_board": "Rename board",
+      "delete_board": "Delete board",
+      "new_board": "New board",
+      "new_list": "New list"
+    },
+    "errors": {
+      "unauthorized": "unauthorized",
+      "failed": "Failed",
+      "cant_move": "Failed to move: {msg}",
+      "cant_save": "Failed to save: {msg}"
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "back": "Back to boards",
+    "name": "Name",
+    "name_placeholder": "Your name",
+    "save": "Save",
+    "name_hint": "This name is visible to other users.",
+    "email": "Email",
+    "role": "Role",
+    "role_admin": "Administrator",
+    "role_user": "User",
+    "loading": "Loading…",
+    "saved": "Saved",
+    "enter_name": "Enter a name",
+    "saving": "Saving…"
+  },
+  "settings": {
+    "title": "Settings",
+    "back": "Back to boards",
+    "theme": {
+      "title": "Theme",
+      "auto": "Auto",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "language": {
+      "title": "Language",
+      "auto": "Auto (system)",
+      "ru": "Russian",
+      "en": "English"
+    },
+    "loading": "Loading…"
+  },
+  "auth": {
+    "login": {
+      "title": "Log in",
+      "welcome": "Welcome! Enter email and password to continue.",
+      "email": "Email",
+      "password": "Password",
+      "show": "Show",
+      "hide": "Hide",
+      "submit": "Log in",
+      "with_github": "Log in with GitHub",
+      "with_google": "Log in with Google",
+      "register": "Register",
+      "forgot": "Forgot password?",
+      "privacy": "Privacy policy",
+      "valid_email": "Enter a valid email.",
+      "short_pass": "Password must be at least 6 characters.",
+      "signing_in": "Signing in…",
+      "error": "Login error",
+      "reset_title": "Password reset",
+      "new_pass": "New password",
+      "repeat_pass": "Repeat password",
+      "again": "Again",
+      "change": "Change password",
+      "cancel": "Cancel",
+      "dev_hint": "You are using dev magic-link. Check URL (#reset=...).",
+      "reset_sent": "If such email exists, reset link is generated (see server logs in dev).",
+      "token_missing": "Token not found in URL.",
+      "passwords_mismatch": "Passwords don't match.",
+      "saving": "Saving…",
+      "changed": "Password changed. Now you can log in.",
+      "verify_ok": "Email confirmed. Now you can log in.",
+      "verify_fail": "Failed to confirm email.",
+      "network_error": "Network error"
+    },
+    "register": {
+      "title": "Register",
+      "subtitle": "Create an account to save your boards and collaborate.",
+      "name": "Name",
+      "example_name": "John Doe",
+      "submit": "Create account",
+      "to_login": "Log in",
+      "email_placeholder": "you@example.com",
+      "creating": "Creating…",
+      "reg_error": "Registration error",
+      "post_reg": "Email provided. Check server logs for dev confirmation link (or wait for email in prod). After confirmation, go to login page.",
+      "need_name": "Enter name.",
+      "need_email": "Enter a valid email.",
+      "short_pass": "Password must be at least 6 characters."
+    }
+  },
+  "admin": {
+    "title": "Admin — Trellolite",
+    "tabs": {"users": "Users", "groups": "Groups", "settings": "Settings"},
+    "back": "← Back",
+  "logout": "Log out",
+  "access_denied": "Access denied. Administrator privileges required.",
+    "confirm": {"continue": "Continue"},
+    "users": {
+      "manage": "User management",
+      "search": "Search by email or name...",
+      "create": "Create user",
+      "table": {"id": "ID", "name": "Name", "email": "Email", "created": "Created", "admin": "Admin", "emailv": "Email", "actions": "Actions"},
+      "loading": "Loading...",
+      "not_found": "No users found",
+      "yes": "Yes", "no": "No", "verified": "Verified", "not_verified": "Not verified",
+      "edit": "Edit", "delete": "Delete",
+      "updated": "User updated", "created_ok": "User created",
+      "delete_q": "Delete user \"{name}\"?",
+      "deleted": "User deleted", "delete_err": "Delete error: {msg}"
+      ,
+      "dlg_title_new": "Create user",
+      "dlg_title_edit": "Edit user",
+      "form": {
+        "name_ph": "Enter name",
+        "is_admin": "Administrator",
+        "email_verified": "Email verified"
+      }
+    },
+    "groups": {
+      "manage": "Group management",
+      "create": "Create group",
+      "table": {"id": "ID", "name": "Name", "members": "Members", "created": "Created", "actions": "Actions"},
+      "loading": "Loading...", "not_found": "No groups found",
+      "members": "Members", "delete": "Delete",
+      "created_ok": "Group created",
+      "delete_q": "Delete group \"{name}\"?",
+      "deleted": "Group deleted",
+      "delete_err": "Delete error: {msg}",
+      "members_empty": "No members",
+      "dlg_title_new": "Create group",
+      "dlg_title_edit": "Edit group",
+      "form": {
+        "name_label": "Group name",
+        "name_ph": "Enter group name"
+      }
+    },
+    "settings": {
+      "system": "System settings",
+      "oauth": "OAuth Providers",
+      "github": "GitHub OAuth",
+      "google": "Google OAuth",
+      "mail": "Mail (SMTP)",
+      "smtp_cfg": "SMTP configuration",
+      "stats": "Stats",
+      "users": "Users", "groups": "Groups", "boards": "Boards",
+      "configured": "Configured", "not_configured": "Not configured"
+    }
+  }
+  ,
+  "about": {
+    "title": "About — Trellolite",
+    "h1": "About Trellolite",
+    "updated": "Last updated:",
+    "purpose": "Purpose and features",
+    "google_why": "Why Google sign-in and what data is requested",
+    "data_use": "How we use and store data",
+    "privacy": "Privacy policy",
+    "support": "Support"
+  },
+  "privacy": {
+    "title": "Trellolite Privacy Policy",
+    "h1": "Trellolite Privacy Policy",
+    "version": "Version date:",
+    "who": "Who processes data",
+    "what": "What data is processed",
+    "purposes": "Purposes",
+    "legal": "Legal basis",
+    "storage": "Storage and retention",
+    "sharing": "Sharing and third parties",
+    "cookies": "Cookies",
+    "rights": "User rights",
+    "deletion": "Account and data deletion",
+    "security": "Security",
+    "updates": "Policy updates",
+    "note": "If you use Google login, links to the home page and this policy are placed on the same verified domain."
+  }
+}

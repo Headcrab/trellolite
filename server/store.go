@@ -685,9 +685,8 @@ func (s *Store) userCredsByEmail(ctx context.Context, email string) (User, strin
 	var u User
 	var hash string
 	var verified bool
-	err := s.db.QueryRowContext(ctx, `select id, email, name, coalesce(avatar_url,''), is_active, is_admin, created_at, password_hash, coalesce(email_verified,false)
-		from users where lower(email)=lower($1)`, email).
-		Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.CreatedAt, &hash, &verified)
+	err := s.db.QueryRowContext(ctx, `select id, email, name, coalesce(avatar_url,''), is_active, is_admin, created_at, password_hash, coalesce(email_verified,false), coalesce(lang,'') from users where lower(email)=lower($1)`, email).
+		Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.CreatedAt, &hash, &verified, &u.Lang)
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, "", ErrNotFound
 	}
@@ -714,10 +713,10 @@ func (s *Store) CreateSession(ctx context.Context, userID int64, ttl time.Durati
 
 func (s *Store) UserBySession(ctx context.Context, token string) (User, error) {
 	var u User
-	err := s.db.QueryRowContext(ctx, `select u.id, u.email, u.name, coalesce(u.avatar_url,''), u.is_active, u.is_admin, coalesce(u.email_verified,false), u.created_at
+	err := s.db.QueryRowContext(ctx, `select u.id, u.email, u.name, coalesce(u.avatar_url,''), u.is_active, u.is_admin, coalesce(u.email_verified,false), coalesce(u.lang,''), u.created_at
 		from sessions s join users u on u.id=s.user_id
 		where s.token=$1 and s.expires_at > now()`, token).
-		Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.EmailVerified, &u.CreatedAt)
+		Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.IsActive, &u.IsAdmin, &u.EmailVerified, &u.Lang, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, ErrNotFound
 	}
@@ -762,7 +761,7 @@ func (s *Store) UpdateUserPasswordByEmail(ctx context.Context, email, newPasswor
 }
 
 // AdminUpdateUser updates a user's basic fields by id. Fields left nil are not changed.
-func (s *Store) AdminUpdateUser(ctx context.Context, id int64, name *string, email *string, isAdmin *bool, emailVerified *bool, password *string) error {
+func (s *Store) AdminUpdateUser(ctx context.Context, id int64, name *string, email *string, isAdmin *bool, emailVerified *bool, password *string, lang *string) error {
 	sets := []string{}
 	args := []any{}
 	idx := 1
@@ -794,6 +793,19 @@ func (s *Store) AdminUpdateUser(ctx context.Context, id int64, name *string, ema
 		}
 		sets = append(sets, fmt.Sprintf("password_hash=$%d", idx))
 		args = append(args, string(hash))
+		idx++
+	}
+	// per-user language (optional). "auto" or empty -> NULL in DB
+	if lang != nil {
+		v := strings.TrimSpace(*lang)
+		var arg any
+		if v == "" || strings.EqualFold(v, "auto") {
+			arg = nil
+		} else {
+			arg = v
+		}
+		sets = append(sets, fmt.Sprintf("lang=$%d", idx))
+		args = append(args, arg)
 		idx++
 	}
 	if len(sets) == 0 {
@@ -1391,6 +1403,8 @@ create table if not exists users(
 
 -- ensure email_verified exists for older installs
 alter table users add column if not exists email_verified boolean not null default false;
+-- ensure per-user language exists
+alter table users add column if not exists lang text;
 
 create table if not exists oauth_accounts(
 		id bigserial primary key,

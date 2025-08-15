@@ -55,6 +55,7 @@ type User struct {
 	IsActive      bool      `json:"is_active"`
 	IsAdmin       bool      `json:"is_admin"`
 	EmailVerified bool      `json:"email_verified"`
+	Lang          string    `json:"lang,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
 }
 

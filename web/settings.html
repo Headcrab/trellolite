@@ -7,29 +7,38 @@
   <title>Настройки — Trellolite</title>
   <link rel="icon" type="image/png" href="/web/favicon.png" sizes="32x32">
   <link rel="stylesheet" href="/web/styles.css">
+  <script src="/web/i18n/i18n.js" defer></script>
 </head>
 <body>
   <header class="topbar" role="banner">
     <div class="tb-left">
-      <a href="/web/index.html" class="btn icon" title="На главную" aria-label="На главную"><svg aria-hidden="true"><use href="#i-chevr-left"></use></svg></a>
-      <span class="brand">Настройки</span>
+  <a href="/web/index.html" class="btn icon" title="" data-t-title="settings.back" aria-label="" data-t-aria-label="settings.back"><svg aria-hidden="true"><use href="#i-chevr-left"></use></svg></a>
+  <span class="brand" data-t="settings.title">Настройки</span>
     </div>
     <div class="tb-center"></div>
     <div class="tb-right">
-      <button id="btnTheme" class="btn icon" title="Переключить тему" aria-label="Переключить тему"><svg aria-hidden="true"><use href="#i-auto"></use></svg></button>
-      <a href="/web/index.html" class="btn">К доскам</a>
+  <button id="btnTheme" class="btn icon" title="" data-t-title="app.theme.toggle" aria-label="" data-t-aria-label="app.theme.toggle"><svg aria-hidden="true"><use href="#i-auto"></use></svg></button>
+  <a href="/web/index.html" class="btn" data-t="settings.back">К доскам</a>
     </div>
   </header>
   <main class="main" style="padding:16px;">
-    <h1>Настройки</h1>
-    <div id="settingsStatus" class="muted">Загрузка…</div>
+    <h1 data-t="settings.title">Настройки</h1>
+    <div id="settingsStatus" class="muted" data-t="settings.loading">Загрузка…</div>
     <form id="settingsForm" class="form" style="display:none" onsubmit="return false">
       <div class="field">
-        <label for="themeSelect">Тема</label>
+        <label for="themeSelect" data-t="settings.theme.title">Тема</label>
         <select id="themeSelect">
-          <option value="auto">Авто</option>
-          <option value="light">Светлая</option>
-          <option value="dark">Тёмная</option>
+          <option value="auto" data-t-option="settings.theme.auto">Авто</option>
+          <option value="light" data-t-option="settings.theme.light">Светлая</option>
+          <option value="dark" data-t-option="settings.theme.dark">Тёмная</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="langSelect" data-t="settings.language.title">Язык</label>
+        <select id="langSelect">
+          <option value="auto" data-t-option="settings.language.auto">Авто (системный)</option>
+          <option value="ru" data-t-option="settings.language.ru">Русский</option>
+          <option value="en" data-t-option="settings.language.en">English</option>
         </select>
       </div>
     </form>
@@ -45,7 +54,22 @@
     function applyThemeIcon(mode){ const btn=document.getElementById('btnTheme'); const useEl=btn&&btn.querySelector('use'); if(useEl){ const icon=mode==='dark'?'#i-moon':mode==='light'?'#i-sun':'#i-auto'; useEl.setAttribute('href',icon); } }
     (function init(){ const mode=getPreferredTheme(); setTheme(mode); applyThemeIcon(mode); const b=document.getElementById('btnTheme'); if(b){ b.addEventListener('click',()=>{ const cur=getPreferredTheme(); const next=cur==='auto'?'light':cur==='light'?'dark':'auto'; localStorage.setItem('theme',next); setTheme(next); applyThemeIcon(next); const sel=document.getElementById('themeSelect'); if(sel) sel.value=next; }); } })();
     async function fetchJSON(url, opts={}){ const init={headers:{'Content-Type':'application/json'}}; if(opts.method) init.method=opts.method; if(opts.body) init.body=JSON.stringify(opts.body); const res=await fetch(url,init); if(!res.ok){ if(res.status===401){ location.href='/web/login.html'; return; } throw new Error(await res.text()); } return res.status===204?null:res.json(); }
-    (async function(){ try{ const me = await fetchJSON('/api/auth/me'); const u = me && me.user; if(!u){ location.href='/web/login.html'; return; } document.getElementById('settingsStatus').style.display='none'; document.getElementById('settingsForm').style.display='block'; const sel=document.getElementById('themeSelect'); sel.value=getPreferredTheme(); sel.addEventListener('change',()=>{ const v=sel.value; localStorage.setItem('theme',v); setTheme(v); applyThemeIcon(v); }); }catch(err){ document.getElementById('settingsStatus').textContent='Ошибка: '+(err.message||''); } })();
+    (async function(){ try{ const me = await fetchJSON('/api/auth/me'); const u = me && me.user; if(!u){ location.href='/web/login.html'; return; } document.getElementById('settingsStatus').style.display='none'; document.getElementById('settingsForm').style.display='block';
+      // Apply server-side language preference if present
+      try{ if(window.i18n && u && u.lang){ await i18n.setLang(u.lang); i18n.apply(); } }catch{}
+      // Theme
+      const sel=document.getElementById('themeSelect'); sel.value=getPreferredTheme(); sel.addEventListener('change',()=>{ const v=sel.value; localStorage.setItem('theme',v); setTheme(v); applyThemeIcon(v); });
+      // Language
+      const langSel = document.getElementById('langSelect');
+      // Prefer server-stored user language if present; else fallback to localStorage
+      const savedLang = (u && u.lang) ? u.lang : (localStorage.getItem('lang')||'auto');
+      if(savedLang) langSel.value = savedLang;
+      langSel.addEventListener('change', async ()=>{ const v = langSel.value; try{
+        // Save on server; 'auto' translates to clearing lang
+        await fetchJSON('/api/me', { method: 'PATCH', body: { lang: v } });
+        await i18n.setLang(v); i18n.apply();
+      }catch(e){ alert((window.t? t('app.errors.cant_save',{msg:e.message}) : ('Не удалось сохранить: '+(e.message||'')))); } });
+    }catch(err){ const st = document.getElementById('settingsStatus'); st.textContent = (window.t? t('app.errors.failed')+': ' : 'Ошибка: ') + (err.message||''); } })();
   </script>
 </body>
 </html>

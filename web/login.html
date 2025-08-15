@@ -10,68 +10,69 @@
   <title>Вход — Trellolite</title>
   <link rel="stylesheet" href="/web/styles.css" />
   <link rel="stylesheet" href="/web/auth.css" />
+  <script src="/web/i18n/i18n.js" defer></script>
 </head>
 <body>
   <main class="auth-page">
     <section class="auth-card" role="form" aria-labelledby="loginTitle">
-  <h1 id="loginTitle">Вход</h1>
-  <p class="sub" id="loginSub">Добро пожаловать! Введите email и пароль, чтобы продолжить.</p>
+  <h1 id="loginTitle" data-t="auth.login.title">Вход</h1>
+  <p class="sub" id="loginSub" data-t="auth.login.welcome">Добро пожаловать! Введите email и пароль, чтобы продолжить.</p>
 
       <div id="error" class="error" aria-live="polite" aria-hidden="true"></div>
 
   <form id="form" novalidate>
         <div class="field">
-          <label for="email">Email</label>
+          <label for="email" data-t="auth.login.email">Email</label>
           <div class="input-wrap">
             <input class="input" id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required autofocus />
           </div>
         </div>
         <div class="field">
-          <label for="password">Пароль</label>
+          <label for="password" data-t="auth.login.password">Пароль</label>
           <div class="input-wrap">
             <input class="input" id="password" name="password" type="password" autocomplete="current-password" minlength="6" placeholder="••••••••" required />
-            <button type="button" id="togglePass" class="toggle-pass" aria-pressed="false" aria-label="Показать пароль">Показать</button>
+            <button type="button" id="togglePass" class="toggle-pass" aria-pressed="false" aria-label="" data-t-aria-label="auth.login.show" data-t="auth.login.show">Показать</button>
           </div>
         </div>
         <div class="actions actions-primary">
-          <button class="btn primary" id="btnLogin" type="submit">Войти</button>
+          <button class="btn primary" id="btnLogin" type="submit" data-t="auth.login.submit">Войти</button>
           <button type="button" class="btn primary" id="btnGithub" hidden>
             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="margin-right:6px"><path d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.02c-3.34.73-4.04-1.61-4.04-1.61-.55-1.41-1.35-1.79-1.35-1.79-1.1-.74.08-.73.08-.73 1.22.08 1.86 1.25 1.86 1.25 1.08 1.85 2.83 1.31 3.52 1 .11-.78.42-1.31.76-1.61-2.66-.3-5.46-1.33-5.46-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.17 0 0 1.01-.32 3.3 1.23a11.45 11.45 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.65.24 2.87.12 3.17.77.84 1.24 1.91 1.24 3.22 0 4.61-2.8 5.62-5.47 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.69.82.58A12 12 0 0 0 12 .5Z"/></svg>
-            Войти через GitHub
+            <span data-t="auth.login.with_github">Войти через GitHub</span>
           </button>
           <button type="button" class="btn primary" id="btnGoogle" hidden>
             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="margin-right:6px"><path d="M12 12v3.6h5.1c-.2 1.3-1.5 3.8-5.1 3.8-3.1 0-5.7-2.6-5.7-5.8s2.5-5.8 5.7-5.8c1.7 0 2.8.7 3.4 1.3l2.3-2.2C16.3 5.7 14.3 4.8 12 4.8 7.6 4.8 4 8.4 4 12.8s3.6 8 8 8c4.6 0 7.7-3.2 7.7-7.7 0-.5 0-.8-.1-1.1H12z"/></svg>
-            Войти через Google
+            <span data-t="auth.login.with_google">Войти через Google</span>
           </button>
         </div>
         <div class="actions actions-secondary">
-          <a class="btn" href="/web/register.html" role="button" aria-label="Перейти к регистрации">Регистрация</a>
-          <button type="button" id="btnForgot" class="btn">Забыли пароль?</button>
+          <a class="btn" href="/web/register.html" role="button" aria-label="" data-t-aria-label="auth.register.title" data-t="auth.login.register">Регистрация</a>
+          <button type="button" id="btnForgot" class="btn" data-t="auth.login.forgot">Забыли пароль?</button>
         </div>
         <div class="form-footer">
-          <a href="/privacy" rel="nofollow">Политика конфиденциальности</a>
+          <a href="/privacy" rel="nofollow" data-t="auth.login.privacy">Политика конфиденциальности</a>
         </div>
       </form>
 
       <form id="formReset" novalidate hidden>
         <div class="field">
-          <label for="newpass">Новый пароль</label>
+          <label for="newpass" data-t="auth.login.new_pass">Новый пароль</label>
           <div class="input-wrap">
             <input class="input" id="newpass" name="newpass" type="password" autocomplete="new-password" minlength="6" placeholder="Минимум 6 символов" required />
           </div>
         </div>
         <div class="field">
-          <label for="newpass2">Повторите пароль</label>
+          <label for="newpass2" data-t="auth.login.repeat_pass">Повторите пароль</label>
           <div class="input-wrap">
             <input class="input" id="newpass2" name="newpass2" type="password" autocomplete="new-password" minlength="6" placeholder="Ещё раз" required />
           </div>
         </div>
         <div class="actions">
-          <button class="btn primary" id="btnDoReset" type="submit">Сменить пароль</button>
-          <button class="btn primary" id="btnBackToLogin" type="button">Отмена</button>
+          <button class="btn primary" id="btnDoReset" type="submit" data-t="auth.login.change">Сменить пароль</button>
+          <button class="btn primary" id="btnBackToLogin" type="button" data-t="auth.login.cancel">Отмена</button>
         </div>
         <div class="helper small">
-          <span>Вы используете dev magic‑link. Проверьте URL (#reset=...).</span>
+          <span data-t="auth.login.dev_hint">Вы используете dev magic‑link. Проверьте URL (#reset=...).</span>
         </div>
       </form>
     </section>

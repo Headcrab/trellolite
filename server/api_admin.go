@@ -163,7 +163,7 @@ func (a *api) handleAdminUpdateUser(w http.ResponseWriter, r *http.Request) {
 		}
 		req.Password = &v
 	}
-	if err := a.store.AdminUpdateUser(r.Context(), id, req.Name, req.Email, req.IsAdmin, req.EmailVerified, req.Password); err != nil {
+	if err := a.store.AdminUpdateUser(r.Context(), id, req.Name, req.Email, req.IsAdmin, req.EmailVerified, req.Password, nil); err != nil {
 		a.log.Error("admin update user", "err", err)
 		writeError(w, 400, "cannot update user")
 		return

@@ -94,7 +94,13 @@ const $$ = (selector) => document.querySelectorAll(selector);
 // Utility functions
 function formatDate(dateStr) {
   if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('ru-RU');
+  try {
+    // Use current locale from i18n if available
+    const lang = (window.i18n && i18n.lang) ? i18n.lang : undefined;
+    return new Date(dateStr).toLocaleDateString(lang || undefined);
+  } catch {
+    return new Date(dateStr).toLocaleDateString();
+  }
 }
 
 function showStatus(elementId, message, type = 'info') {
@@ -110,7 +116,8 @@ function showStatus(elementId, message, type = 'info') {
 
 function confirmDialog(message) {
   return new Promise((resolve) => {
-    $('confirmMessage').textContent = message || 'Вы уверены?';
+  const msg = message || (window.t ? t('app.dialogs.are_you_sure') : 'Вы уверены?');
+  $('confirmMessage').textContent = msg;
     $('dlgConfirm').showModal();
     
     const handleResolve = (result) => {
@@ -174,14 +181,15 @@ async function loadUsers(query = '') {
     renderUsers();
   } catch (err) {
     console.error('Failed to load users:', err);
-  $('usersTableBody').innerHTML = `<tr><td colspan="7" class="loading">Ошибка загрузки: ${err.message}</td></tr>`;
+  const txt = (window.t ? t('app.board.load_error') : 'Ошибка загрузки') + ': ' + err.message;
+  $('usersTableBody').innerHTML = `<tr><td colspan="7" class="loading">${txt}</td></tr>`;
   }
 }
 
 function renderUsers() {
   const tbody = $('usersTableBody');
   if (!adminState.users.length) {
-  tbody.innerHTML = '<tr><td colspan="7" class="loading">Пользователи не найдены</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="7" class="loading">${window.t ? t('admin.users.not_found') : 'Пользователи не найдены'}</td></tr>`;
     return;
   }
   
@@ -191,12 +199,12 @@ function renderUsers() {
       <td>${escapeHtml(user.name)}</td>
       <td>${escapeHtml(user.email)}</td>
       <td>${formatDate(user.created_at)}</td>
-      <td><span class="status ${user.is_admin ? 'active' : 'inactive'}">${user.is_admin ? 'Да' : 'Нет'}</span></td>
-      <td><span class="status ${user.email_verified ? 'active' : 'inactive'}">${user.email_verified ? 'Подтв.' : 'Не подтв.'}</span></td>
+  <td><span class="status ${user.is_admin ? 'active' : 'inactive'}">${user.is_admin ? (window.t ? t('admin.users.yes') : 'Да') : (window.t ? t('admin.users.no') : 'Нет')}</span></td>
+  <td><span class="status ${user.email_verified ? 'active' : 'inactive'}">${user.email_verified ? (window.t ? t('admin.users.verified') : 'Подтв.') : (window.t ? t('admin.users.not_verified') : 'Не подтв.')}</span></td>
       <td>
         <div class="table-actions">
-          <button class="btn btn-sm btn-edit" data-action="edit" data-id="${user.id}">Изменить</button>
-          <button class="btn btn-sm btn-delete" data-action="delete" data-id="${user.id}">Удалить</button>
+          <button class="btn btn-sm btn-edit" data-action="edit" data-id="${user.id}">${window.t ? t('admin.users.edit') : 'Изменить'}</button>
+          <button class="btn btn-sm btn-delete" data-action="delete" data-id="${user.id}">${window.t ? t('admin.users.delete') : 'Удалить'}</button>
         </div>
       </td>
     </tr>
@@ -215,7 +223,11 @@ function renderUsers() {
 
 function openUserDialog(user = null) {
   const isEdit = !!user;
-  $('userDialogTitle').textContent = isEdit ? 'Редактировать пользователя' : 'Создать пользователя';
+  if (window.t) {
+    $('userDialogTitle').textContent = isEdit ? t('admin.users.dlg_title_edit') : t('admin.users.dlg_title_new');
+  } else {
+    $('userDialogTitle').textContent = isEdit ? 'Редактировать пользователя' : 'Создать пользователя';
+  }
   $('userId').value = isEdit ? user.id : '';
   $('userName').value = isEdit ? user.name : '';
   $('userEmail').value = isEdit ? user.email : '';
@@ -227,7 +239,7 @@ function openUserDialog(user = null) {
   if (badge) {
     if (isEdit) {
       const ok = !!user.email_verified;
-      badge.textContent = ok ? 'Почта подтверждена' : 'Почта не подтверждена';
+      badge.textContent = ok ? (window.t ? t('admin.users.form.email_verified') : 'Почта подтверждена') : (window.t ? t('admin.users.not_verified') : 'Почта не подтверждена');
       badge.className = `status ${ok ? 'active' : 'inactive'}`;
       badge.style.display = '';
     } else {
@@ -274,10 +286,10 @@ async function saveUser() {
   try {
     if (isEdit) {
       await adminApi.updateUser(userId, payload);
-      showStatus('userFormStatus', 'Пользователь обновлен', 'success');
+  showStatus('userFormStatus', window.t ? t('admin.users.updated') : 'Пользователь обновлен', 'success');
     } else {
       await adminApi.createUser(payload);
-      showStatus('userFormStatus', 'Пользователь создан', 'success');
+  showStatus('userFormStatus', window.t ? t('admin.users.created_ok') : 'Пользователь создан', 'success');
     }
     // brief delay to show success then close
     setTimeout(() => {
@@ -285,7 +297,8 @@ async function saveUser() {
       loadUsers();
     }, 250);
   } catch (err) {
-    showStatus('userFormStatus', `Ошибка: ${err.message}`, 'error');
+  const txt = (window.t ? t('app.errors.failed') : 'Ошибка') + `: ${err.message}`;
+  showStatus('userFormStatus', txt, 'error');
   }
 }
 
@@ -300,15 +313,16 @@ async function deleteUser(userId) {
   const user = adminState.users.find(u => u.id === userId);
   if (!user) return;
   
-  const confirmed = await confirmDialog(`Удалить пользователя "${user.name}"?`);
+  const confirmed = await confirmDialog(window.t ? t('admin.users.delete_q', { name: user.name }) : `Удалить пользователя "${user.name}"?`);
   if (!confirmed) return;
   
   try {
     await adminApi.deleteUser(userId);
-    showStatus('membersStatus', 'Пользователь удален', 'success');
+  showStatus('membersStatus', window.t ? t('admin.users.deleted') : 'Пользователь удален', 'success');
     loadUsers();
   } catch (err) {
-    showStatus('membersStatus', `Ошибка удаления: ${err.message}`, 'error');
+  const txt = window.t ? t('admin.users.delete_err', { msg: err.message }) : `Ошибка удаления: ${err.message}`;
+  showStatus('membersStatus', txt, 'error');
   }
 }
 
@@ -322,14 +336,15 @@ async function loadGroups() {
     renderGroups();
   } catch (err) {
     console.error('Failed to load groups:', err);
-    $('groupsTableBody').innerHTML = `<tr><td colspan="5" class="loading">Ошибка загрузки: ${err.message}</td></tr>`;
+  const txt = (window.t ? t('app.board.load_error') : 'Ошибка загрузки') + ': ' + err.message;
+  $('groupsTableBody').innerHTML = `<tr><td colspan="5" class="loading">${txt}</td></tr>`;
   }
 }
 
 function renderGroups() {
   const tbody = $('groupsTableBody');
   if (!adminState.groups.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="loading">Группы не найдены</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="5" class="loading">${window.t ? t('admin.groups.not_found') : 'Группы не найдены'}</td></tr>`;
     return;
   }
   
@@ -341,8 +356,8 @@ function renderGroups() {
       <td>${formatDate(group.created_at)}</td>
       <td>
         <div class="table-actions">
-          <button class="btn btn-sm btn-members" data-action="members" data-id="${group.id}">Участники</button>
-          <button class="btn btn-sm btn-delete" data-action="delete" data-id="${group.id}">Удалить</button>
+          <button class="btn btn-sm btn-members" data-action="members" data-id="${group.id}">${window.t ? t('admin.groups.members') : 'Участники'}</button>
+          <button class="btn btn-sm btn-delete" data-action="delete" data-id="${group.id}">${window.t ? t('admin.groups.delete') : 'Удалить'}</button>
         </div>
       </td>
     </tr>
@@ -356,7 +371,7 @@ function renderGroups() {
       if (act === 'members') {
         const row = e.currentTarget.closest('tr');
         const nameCell = row && row.children[1] ? row.children[1].textContent : '';
-        openGroupMembers(id, nameCell || 'Группа');
+  openGroupMembers(id, nameCell || 'Группа');
       } else if (act === 'delete') {
         deleteGroup(id);
       }
@@ -366,7 +381,11 @@ function renderGroups() {
 
 function openGroupDialog(group = null) {
   const isEdit = !!group;
-  $('groupDialogTitle').textContent = isEdit ? 'Редактировать группу' : 'Создать группу';
+  if (window.t) {
+    $('groupDialogTitle').textContent = isEdit ? t('admin.groups.dlg_title_edit') : t('admin.groups.dlg_title_new');
+  } else {
+    $('groupDialogTitle').textContent = isEdit ? 'Редактировать группу' : 'Создать группу';
+  }
   $('groupId').value = isEdit ? group.id : '';
   $('groupName').value = isEdit ? group.name : '';
   
@@ -387,14 +406,15 @@ async function saveGroup() {
   
   try {
     await adminApi.createGroup(name);
-    showStatus('groupFormStatus', 'Группа создана', 'success');
+  showStatus('groupFormStatus', window.t ? t('admin.groups.created_ok') : 'Группа создана', 'success');
     // brief delay to show success then close
     setTimeout(() => {
       $('dlgGroup').close();
       loadGroups();
     }, 250);
   } catch (err) {
-    showStatus('groupFormStatus', `Ошибка: ${err.message}`, 'error');
+  const txt = (window.t ? t('app.errors.failed') : 'Ошибка') + `: ${err.message}`;
+  showStatus('groupFormStatus', txt, 'error');
   }
 }
 
@@ -402,15 +422,16 @@ async function deleteGroup(groupId) {
   const group = adminState.groups.find(g => g.id === groupId);
   if (!group) return;
   
-  const confirmed = await confirmDialog(`Удалить группу "${group.name}"?`);
+  const confirmed = await confirmDialog(window.t ? t('admin.groups.delete_q', { name: group.name }) : `Удалить группу "${group.name}"?`);
   if (!confirmed) return;
   
   try {
     await adminApi.deleteGroup(groupId);
-    showStatus('membersStatus', 'Группа удалена', 'success');
+  showStatus('membersStatus', window.t ? t('admin.groups.deleted') : 'Группа удалена', 'success');
     loadGroups();
   } catch (err) {
-    showStatus('membersStatus', `Ошибка удаления: ${err.message}`, 'error');
+  const txt = window.t ? t('admin.groups.delete_err', { msg: err.message }) : `Ошибка удаления: ${err.message}`;
+  showStatus('membersStatus', txt, 'error');
   }
 }
 
@@ -431,7 +452,8 @@ async function openGroupMembers(groupId, groupName) {
 function renderGroupMembers(members, groupId) {
   const list = $('membersList');
   if (!members.length) {
-    list.innerHTML = '<div class="member-item-modern" style="justify-content: center; color: var(--muted);">Участников нет</div>';
+    const txt = window.t ? t('admin.groups.members_empty') : 'Участников нет';
+    list.innerHTML = `<div class="member-item-modern" style="justify-content: center; color: var(--muted);">${txt}</div>`;
     return;
   }
   
@@ -441,7 +463,7 @@ function renderGroupMembers(members, groupId) {
         <div class="member-name-modern">${escapeHtml(member.name)}</div>
         <div class="member-email-modern">${escapeHtml(member.email)}</div>
       </div>
-      <button class="btn-remove" onclick="removeFromGroup(${groupId}, ${member.id})">Удалить</button>
+  <button class="btn-remove" onclick="removeFromGroup(${groupId}, ${member.id})">${window.t ? t('admin.groups.delete') : 'Удалить'}</button>
     </div>
   `).join('');
 }
@@ -449,12 +471,14 @@ function renderGroupMembers(members, groupId) {
 async function removeFromGroup(groupId, userId) {
   try {
     await adminApi.removeUserFromGroup(groupId, userId);
-    showStatus('membersStatus', 'Участник удален', 'success');
+  // Reuse group delete success text is misleading; show generic success
+  showStatus('membersStatus', window.t ? t('app.dialogs.ok') : 'ОК', 'success');
     // Reload members
     const groupName = $('groupMembersTitle').textContent;
     openGroupMembers(groupId, groupName);
   } catch (err) {
-    showStatus('membersStatus', `Ошибка: ${err.message}`, 'error');
+  const txt = (window.t ? t('app.errors.failed') : 'Ошибка') + `: ${err.message}`;
+  showStatus('membersStatus', txt, 'error');
   }
 }
 
@@ -471,9 +495,9 @@ async function loadSettings() {
     const googleEl = document.getElementById('googleStatus');
     const smtpEl = document.getElementById('smtpStatus');
 
-    if (githubEl) { githubEl.textContent = hasGithub ? 'Настроен' : 'Не настроен'; githubEl.className = `status ${hasGithub ? 'active' : 'inactive'}`; }
-    if (googleEl) { googleEl.textContent = hasGoogle ? 'Настроен' : 'Не настроен'; googleEl.className = `status ${hasGoogle ? 'active' : 'inactive'}`; }
-    if (smtpEl) { smtpEl.textContent = smtpConfigured ? 'Настроен' : 'Не настроен'; smtpEl.className = `status ${smtpConfigured ? 'active' : 'inactive'}`; }
+  if (githubEl) { githubEl.textContent = hasGithub ? (window.t ? t('admin.settings.configured') : 'Настроен') : (window.t ? t('admin.settings.not_configured') : 'Не настроен'); githubEl.className = `status ${hasGithub ? 'active' : 'inactive'}`; }
+  if (googleEl) { googleEl.textContent = hasGoogle ? (window.t ? t('admin.settings.configured') : 'Настроен') : (window.t ? t('admin.settings.not_configured') : 'Не настроен'); googleEl.className = `status ${hasGoogle ? 'active' : 'inactive'}`; }
+  if (smtpEl) { smtpEl.textContent = smtpConfigured ? (window.t ? t('admin.settings.configured') : 'Настроен') : (window.t ? t('admin.settings.not_configured') : 'Не настроен'); smtpEl.className = `status ${smtpConfigured ? 'active' : 'inactive'}`; }
 
     // Load stats (basic, using current cached state)
     document.getElementById('totalUsers').textContent = adminState.users.length;
@@ -527,7 +551,7 @@ function setupEventListeners() {
       await adminApi.logout();
       location.href = '/web/login.html';
     } catch (err) {
-      alert('Ошибка выхода: ' + err.message);
+  alert(((window.t ? t('app.errors.failed') : 'Ошибка') + ' ') + (window.t ? t('admin.logout') : 'выхода') + ': ' + err.message);
     }
   });
   
@@ -585,7 +609,7 @@ async function initAdmin() {
     }
     
     if (!me.user.is_admin) {
-      alert('Доступ запрещен. Требуются права администратора.');
+      alert(window.t ? t('admin.access_denied') : 'Доступ запрещен. Требуются права администратора.');
       location.href = '/';
       return;
     }
@@ -601,7 +625,8 @@ async function initAdmin() {
     
   } catch (err) {
     console.error('Admin init failed:', err);
-    alert('Ошибка инициализации админки: ' + err.message);
+  const txt = (window.t ? t('app.errors.failed') : 'Ошибка') + ': ' + err.message;
+  alert(txt);
     location.href = '/';
   }
 }

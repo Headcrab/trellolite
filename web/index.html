@@ -7,6 +7,7 @@
   <title>Trellolite</title>
   <link rel="icon" type="image/png" href="/web/favicon.png" sizes="32x32">
   <link rel="stylesheet" href="/web/styles.css">
+  <script src="/web/i18n/i18n.js" defer></script>
 </head>
 <body>
   <!-- Верхняя шапка приложения -->
@@ -18,12 +19,12 @@
       <span class="brand">Trellolite</span>
     </div>
     <div class="tb-center">
-      <form class="search" role="search" aria-label="Поиск по доскам" onsubmit="return false">
-        <input id="q" type="search" placeholder="Поиск" autocomplete="off">
+      <form class="search" role="search" aria-label="" data-t-aria-label="app.search.boards_aria" onsubmit="return false">
+        <input id="q" type="search" placeholder="" data-t-placeholder="app.search.placeholder" autocomplete="off">
       </form>
     </div>
     <div class="tb-right">
-      <button id="btnTheme" class="btn icon" title="Переключить тему" aria-label="Переключить тему">
+  <button id="btnTheme" class="btn icon" title="" data-t-title="app.theme.toggle" aria-label="" data-t-aria-label="app.theme.toggle">
         <svg aria-hidden="true"><use href="#i-auto"></use></svg>
       </button>
       <!-- Меню пользователя: details обеспечивает доступность и автозакрытие -->
@@ -33,14 +34,14 @@
         </summary>
         <div class="menu-panel" role="menu" aria-label="Меню пользователя">
           <div class="group">
-            <a class="item" role="menuitem" id="miProfile" href="/web/profile.html">Профиль</a>
-            <a class="item" role="menuitem" id="miSettings" href="/web/settings.html">Настройки</a>
+            <a class="item" role="menuitem" id="miProfile" href="/web/profile.html" data-t="app.menu.profile">Профиль</a>
+            <a class="item" role="menuitem" id="miSettings" href="/web/settings.html" data-t="app.menu.settings">Настройки</a>
           </div>
           <div class="group">
-            <a class="item" role="menuitem" id="btnAdmin" href="/web/admin.html" style="display:none">Администрирование</a>
+            <a class="item" role="menuitem" id="btnAdmin" href="/web/admin.html" style="display:none" data-t="app.menu.admin">Администрирование</a>
           </div>
           <div class="group">
-            <button type="button" class="item danger" role="menuitem" id="btnLogout">Выйти</button>
+            <button type="button" class="item danger" role="menuitem" id="btnLogout" data-t="app.menu.logout">Выйти</button>
           </div>
         </div>
       </details>
@@ -50,40 +51,40 @@
   <aside class="sidebar">
       <!-- Блок userbar удален: теперь профиль в верхней шапке -->
       <div class="boards-header">
-        <span>Доски</span>
+  <span data-t="app.sidebar.boards">Доски</span>
         <div class="scope-toggle" role="group" aria-label="Фильтр досок">
-          <button id="scopeMine" class="btn toggle" aria-pressed="true" title="Показать мои доски" aria-label="Мои">
+          <button id="scopeMine" class="btn toggle" aria-pressed="true" title="Показать мои доски" aria-label="" data-t-aria-label="app.sidebar.mine">
             <svg aria-hidden="true"><use href="#i-user"></use></svg>
-            <span class="lbl">Мои</span>
+            <span class="lbl" data-t="app.sidebar.mine">Мои</span>
           </button>
-          <button id="scopeGroups" class="btn toggle" aria-pressed="true" title="Показать доски из групп" aria-label="Группы">
+          <button id="scopeGroups" class="btn toggle" aria-pressed="true" title="Показать доски из групп" aria-label="" data-t-aria-label="app.sidebar.groups">
             <svg aria-hidden="true"><use href="#i-users"></use></svg>
-            <span class="lbl">Группы</span>
+            <span class="lbl" data-t="app.sidebar.groups">Группы</span>
           </button>
         </div>
         <div class="spacer"></div>
-        <button id="btnNewBoard" class="btn icon" title="Новая доска" aria-label="Новая доска"><svg aria-hidden="true"><use href="#i-plus"></use></svg></button>
+  <button id="btnNewBoard" class="btn icon" title="" data-t-title="app.sidebar.new_board" aria-label="" data-t-aria-label="app.sidebar.new_board"><svg aria-hidden="true"><use href="#i-plus"></use></svg></button>
       </div>
   <ul id="boards" class="boards"></ul>
       <div class="sidebar-footer">
-        <button id="btnGroupsPanel" class="btn" title="Управление группами">Группы…</button>
+  <button id="btnGroupsPanel" class="btn" title="" data-t-title="app.sidebar.groups_panel" data-t="app.sidebar.groups_panel">Группы…</button>
       </div>
     </aside>
     <main class="main">
       <div id="boardHeader" class="board-header">
         <h2 id="boardTitle"></h2>
         <div class="spacer"></div>
-        <a href="/privacy" class="link-privacy" title="Политика конфиденциальности">Политика</a>
-        <button id="btnBoardGroups" class="btn icon" title="Доступ к доске для групп" aria-label="Доступ">
+  <a href="/privacy" class="link-privacy" title="" data-t-title="app.board.policy" data-t="app.board.policy">Политика</a>
+  <button id="btnBoardGroups" class="btn icon" title="" data-t-title="app.board.access" aria-label="Доступ">
           <svg aria-hidden="true"><use href="#i-users"></use></svg>
         </button>
-        <button id="btnRenameBoard" class="btn icon" title="Переименовать доску" aria-label="Переименовать">
+  <button id="btnRenameBoard" class="btn icon" title="" data-t-title="app.board.rename" aria-label="Переименовать">
           <svg aria-hidden="true"><use href="#i-edit"></use></svg>
         </button>
-        <button id="btnDeleteBoard" class="btn icon" title="Удалить доску" aria-label="Удалить">
+  <button id="btnDeleteBoard" class="btn icon" title="" data-t-title="app.board.delete" aria-label="Удалить">
           <svg aria-hidden="true"><use href="#i-trash"></use></svg>
         </button>
-        <button id="btnNewList" class="btn icon" title="Новый список" aria-label="Новый список">
+  <button id="btnNewList" class="btn icon" title="" data-t-title="app.board.new_list" aria-label="Новый список">
           <svg aria-hidden="true"><use href="#i-plus"></use></svg>
         </button>
       </div>
@@ -93,32 +94,32 @@
 
   <dialog id="dlgBoard">
     <form id="formBoard" method="dialog">
-      <h3>Новая доска</h3>
-      <label>Название
+      <h3 data-t="app.dialogs.board_new.title">Новая доска</h3>
+      <label><span data-t="app.dialogs.board_new.name">Название</span>
         <input name="title" required maxlength="200">
       </label>
-      <label>Проект
+      <label><span data-t="app.dialogs.board_new.project">Проект</span>
         <div class="row">
           <select id="projectSelect" name="project_id"></select>
-          <button id="btnNewProject" type="button" class="btn">Новый проект…</button>
+          <button id="btnNewProject" type="button" class="btn" data-t="app.dialogs.board_new.new_project">Новый проект…</button>
         </div>
       </label>
       <menu>
-  <button type="button" value="cancel" class="btn" formnovalidate>Отмена</button>
-  <button value="ok" class="btn primary">Создать</button>
+        <button type="button" value="cancel" class="btn" formnovalidate data-t="app.dialogs.cancel">Отмена</button>
+        <button value="ok" class="btn primary" data-t="app.dialogs.board_new.create">Создать</button>
       </menu>
     </form>
   </dialog>
 
   <dialog id="dlgList">
     <form id="formList" method="dialog">
-      <h3>Новый список</h3>
-      <label>Название
+      <h3 data-t="app.dialogs.list.new">Новый список</h3>
+      <label><span data-t="app.dialogs.list.title">Название</span>
         <input name="title" required maxlength="200">
       </label>
       <menu>
-  <button type="button" value="cancel" class="btn" formnovalidate>Отмена</button>
-  <button value="ok" class="btn primary">Создать</button>
+        <button type="button" value="cancel" class="btn" formnovalidate data-t="app.dialogs.cancel">Отмена</button>
+        <button value="ok" class="btn primary" data-t="app.dialogs.board_new.create">Создать</button>
       </menu>
     </form>
   </dialog>
@@ -126,19 +127,19 @@
   <dialog id="dlgCard" class="card-dialog">
     <div class="card-dialog-container">
       <div class="card-dialog-header">
-        <h2>Новая карточка</h2>
+        <h2 data-t="app.dialogs.card.new">Новая карточка</h2>
         <button type="button" class="close-btn" id="btnCloseCardDialog">×</button>
       </div>
       
       <form id="formCard" class="card-form">
         <div class="form-group">
-          <label for="cardTitle">Заголовок</label>
-          <input type="text" id="cardTitle" name="title" required maxlength="200" placeholder="Название задачи">
+          <label for="cardTitle" data-t="app.dialogs.card.title">Заголовок</label>
+          <input type="text" id="cardTitle" name="title" required maxlength="200" placeholder="" data-t-placeholder="app.dialogs.card.placeholder_title">
         </div>
         
         <div class="form-group">
-          <label for="cardDescription">Описание</label>
-          <textarea id="cardDescription" name="description" rows="6" placeholder="Опишите задачу..."></textarea>
+          <label for="cardDescription" data-t="app.dialogs.card.description">Описание</label>
+          <textarea id="cardDescription" name="description" rows="6" placeholder="" data-t-placeholder="app.dialogs.card.placeholder_desc"></textarea>
           <div class="checkbox-group">
             <label class="checkbox-label">
               <input type="checkbox" name="description_is_md">
@@ -149,15 +150,15 @@
         </div>
         
         <div class="form-group">
-          <label for="cardDueAt">Срок</label>
+          <label for="cardDueAt" data-t="app.dialogs.card.due">Срок</label>
           <input id="cardDueAt" name="due_at" type="text" placeholder="дд.мм.гггг чч:мм" readonly>
         </div>
         
         <div id="cardFormStatus" class="form-status"></div>
         
         <div class="form-actions">
-          <button type="button" class="btn btn-secondary" id="btnCancelCardDialog">Отмена</button>
-          <button type="submit" class="btn btn-primary">Создать</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelCardDialog" data-t="app.dialogs.cancel">Отмена</button>
+          <button type="submit" class="btn btn-primary" data-t="app.dialogs.card.create">Создать</button>
         </div>
       </form>
     </div>
@@ -165,81 +166,81 @@
 
   <dialog id="dlgCardView">
     <div class="dialog-body">
-      <h3>Карточка</h3>
-      <label>Заголовок
-            <input id="cvTitle" maxlength="200" placeholder="Название">
+      <h3 data-t="app.dialogs.card.new">Карточка</h3>
+      <label><span data-t="app.dialogs.card.title">Заголовок</span>
+            <input id="cvTitle" maxlength="200" placeholder="" data-t-placeholder="app.dialogs.card.title">
       </label>
-      <label>Описание
-  <textarea id="cvDescription" rows="6" placeholder="Опишите задачу..."></textarea>
+      <label><span data-t="app.dialogs.card.description">Описание</span>
+  <textarea id="cvDescription" rows="6" placeholder="" data-t-placeholder="app.dialogs.card.placeholder_desc"></textarea>
   <!-- Markdown toggle button injected by JS; preview container follows -->
       </label>
-      <label>Срок
+      <label><span data-t="app.dialogs.card.due">Срок</span>
         <input id="cvDueAt" type="text" placeholder="дд.мм.гггг  чч:мм" readonly>
       </label>
-      <label id="assigneeField" hidden>Исполнитель
+      <label id="assigneeField" hidden><span data-t="app.dialogs.card.assignee">Исполнитель</span>
         <select id="cvAssignee"></select>
       </label>
       <section>
-        <h4>Комментарии</h4>
+        <h4 data-t="app.dialogs.card.comments">Комментарии</h4>
         <ul id="cvComments"></ul>
         <div class="add-comment">
           <input id="cvCommentText" placeholder="Написать комментарий..." maxlength="1000">
-          <button id="btnAddComment" class="btn primary">Добавить</button>
+          <button id="btnAddComment" class="btn primary" data-t="app.dialogs.card.add_comment">Добавить</button>
         </div>
       </section>
       <menu>
-        <button id="btnCloseCardView" class="btn">Закрыть</button>
-        <button id="btnSaveCardView" class="btn primary">Сохранить</button>
+        <button id="btnCloseCardView" class="btn" data-t="app.dialogs.close">Закрыть</button>
+        <button id="btnSaveCardView" class="btn primary" data-t="app.dialogs.card.save">Сохранить</button>
       </menu>
     </div>
   </dialog>
 
   <dialog id="dlgDateTime">
     <div class="dialog-body">
-      <h3>Дата и время</h3>
+      <h3 data-t="app.dialogs.datetime.title">Дата и время</h3>
       <div class="dt-header">
-        <button class="btn icon" id="dtPrev" title="Предыдущий месяц" aria-label="Предыдущий месяц">‹</button>
+        <button class="btn icon" id="dtPrev" title="" data-t-title="app.dialogs.datetime.prev" aria-label="" data-t-aria-label="app.dialogs.datetime.prev">‹</button>
         <div class="dt-month" id="dtMonth"></div>
-        <button class="btn icon" id="dtNext" title="Следующий месяц" aria-label="Следующий месяц">›</button>
+        <button class="btn icon" id="dtNext" title="" data-t-title="app.dialogs.datetime.next" aria-label="" data-t-aria-label="app.dialogs.datetime.next">›</button>
       </div>
       <div class="dt-grid" id="dtGrid"></div>
       <div class="dt-time">
-        <label>Часы
+        <label><span data-t="app.dialogs.datetime.hours">Часы</span>
           <select id="dtHour"></select>
         </label>
-        <label>Минуты
+        <label><span data-t="app.dialogs.datetime.minutes">Минуты</span>
           <select id="dtMinute"></select>
         </label>
       </div>
       <menu>
-        <button type="button" id="btnDtClear" class="btn">Сбросить</button>
-        <button type="button" id="btnDtCancel" class="btn">Отмена</button>
-        <button type="button" id="btnDtOk" class="btn primary">Применить</button>
+        <button type="button" id="btnDtClear" class="btn" data-t="app.dialogs.datetime.clear">Сбросить</button>
+        <button type="button" id="btnDtCancel" class="btn" data-t="app.dialogs.datetime.cancel">Отмена</button>
+        <button type="button" id="btnDtOk" class="btn primary" data-t="app.dialogs.datetime.apply">Применить</button>
       </menu>
     </div>
   </dialog>
 
   <dialog id="dlgConfirm">
     <form id="formConfirm" method="dialog">
-      <h3>Подтверждение</h3>
-      <p id="confirmMessage">Вы уверены?</p>
+      <h3 data-t="app.dialogs.confirm">Подтверждение</h3>
+      <p id="confirmMessage" data-t="app.dialogs.are_you_sure">Вы уверены?</p>
       <menu>
-  <button id="btnConfirmCancel" class="btn" value="cancel">Отмена</button>
-  <button id="btnConfirmOk" class="btn primary" value="ok">Продолжить</button>
+        <button id="btnConfirmCancel" class="btn" value="cancel" data-t="app.dialogs.cancel">Отмена</button>
+        <button id="btnConfirmOk" class="btn primary" value="ok" data-t="app.dialogs.ok">OK</button>
       </menu>
     </form>
   </dialog>
 
   <dialog id="dlgInput">
     <form id="formInput" method="dialog">
-      <h3 id="inputTitle">Ввод</h3>
+      <h3 id="inputTitle" data-t="app.dialogs.input.title">Ввод</h3>
       <label>
-        <span id="inputLabel">Значение</span>
+        <span id="inputLabel" data-t="app.dialogs.input.label">Значение</span>
         <input id="inputValue" name="value" maxlength="200" required>
       </label>
       <menu>
-        <button type="button" value="cancel" class="btn">Отмена</button>
-        <button value="ok" class="btn primary">ОК</button>
+        <button type="button" value="cancel" class="btn" data-t="app.dialogs.cancel">Отмена</button>
+        <button value="ok" class="btn primary" data-t="app.dialogs.ok">ОК</button>
       </menu>
     </form>
   </dialog>
@@ -248,69 +249,69 @@
     <form id="formSelect" method="dialog">
       
       <label>
-        <span id="selectLabel">Выберите</span>
+  <span id="selectLabel" data-t="app.dialogs.select.label">Выберите</span>
         <select id="selectControl" name="select"></select>
       </label>
       <menu>
-        <button type="button" value="cancel" class="btn">Отмена</button>
-        <button value="ok" class="btn primary">Выбрать</button>
+  <button type="button" value="cancel" class="btn" data-t="app.dialogs.cancel">Отмена</button>
+  <button value="ok" class="btn primary" data-t="app.dialogs.apply">Применить</button>
       </menu>
     </form>
   </dialog>
 
   <dialog id="dlgGroups">
     <form id="formGroups" method="dialog">
-      <h3>Доступ доски для групп</h3>
+      <h3 data-t="app.dialogs.groups.title">Доступ доски для групп</h3>
       <div id="groupsList" class="groups-list"></div>
       <menu>
-        <button type="button" value="cancel" class="btn">Отмена</button>
-        <button value="ok" class="btn primary">Сохранить</button>
+        <button type="button" value="cancel" class="btn" data-t="app.dialogs.cancel">Отмена</button>
+        <button value="ok" class="btn primary" data-t="app.dialogs.groups.save">Сохранить</button>
       </menu>
     </form>
   </dialog>
 
   <dialog id="dlgMembers">
     <form id="formMembers" method="dialog">
-      <h3>Участники группы</h3>
-  <div class="field"><input id="userSearch" placeholder="Поиск пользователя по имени"></div>
+  <h3 data-t="app.dialogs.members.title">Участники группы</h3>
+  <div class="field"><input id="userSearch" placeholder="" data-t-placeholder="app.dialogs.members.search"></div>
   <div id="membersStatus"></div>
       <div id="membersList" class="groups-list"></div>
       <menu>
-        <button value="cancel" class="btn">Закрыть</button>
+    <button value="cancel" class="btn" data-t="app.dialogs.members.close">Закрыть</button>
       </menu>
     </form>
   </dialog>
 
   <dialog id="dlgGroupsPanel">
     <form id="formGroupsPanel" method="dialog">
-      <h3>Группы</h3>
+      <h3 data-t="app.sidebar.groups">Группы</h3>
       <div id="groupsPanelList" class="groups-list"></div>
       <menu>
-        <button type="button" value="cancel" class="btn">Закрыть</button>
+        <button type="button" value="cancel" class="btn" data-t="app.dialogs.close">Закрыть</button>
       </menu>
     </form>
   </dialog>
 
   <dialog id="dlgColor">
     <form id="formColor" method="dialog">
-      <h3>Цвет</h3>
+      <h3 data-t="app.dialogs.color.title">Цвет</h3>
       <div class="color-grid">
-        <button type="button" class="swatch" data-color="" title="Без цвета"></button>
-        <button type="button" class="swatch" data-color="#ef4444" style="--c:#ef4444" title="Красный"></button>
-        <button type="button" class="swatch" data-color="#f59e0b" style="--c:#f59e0b" title="Оранжевый"></button>
-        <button type="button" class="swatch" data-color="#10b981" style="--c:#10b981" title="Зелёный"></button>
-        <button type="button" class="swatch" data-color="#3b82f6" style="--c:#3b82f6" title="Синий"></button>
-        <button type="button" class="swatch" data-color="#8b5cf6" style="--c:#8b5cf6" title="Фиолетовый"></button>
-        <button type="button" class="swatch" data-color="#ec4899" style="--c:#ec4899" title="Розовый"></button>
-        <button type="button" class="swatch" data-color="#14b8a6" style="--c:#14b8a6" title="Бирюзовый"></button>
-        <button type="button" class="swatch" data-color="#f43f5e" style="--c:#f43f5e" title="Малиновый"></button>
+        <button type="button" class="swatch" data-color="" title="" data-t-title="app.dialogs.color.none"></button>
+        <button type="button" class="swatch" data-color="#ef4444" style="--c:#ef4444" title="" data-t-title="app.dialogs.color.red"></button>
+        <button type="button" class="swatch" data-color="#f59e0b" style="--c:#f59e0b" title="" data-t-title="app.dialogs.color.orange"></button>
+        <button type="button" class="swatch" data-color="#10b981" style="--c:#10b981" title="" data-t-title="app.dialogs.color.green"></button>
+        <button type="button" class="swatch" data-color="#3b82f6" style="--c:#3b82f6" title="" data-t-title="app.dialogs.color.blue"></button>
+        <button type="button" class="swatch" data-color="#8b5cf6" style="--c:#8b5cf6" title="" data-t-title="app.dialogs.color.violet"></button>
+        <button type="button" class="swatch" data-color="#ec4899" style="--c:#ec4899" title="" data-t-title="app.dialogs.color.pink"></button>
+        <button type="button" class="swatch" data-color="#14b8a6" style="--c:#14b8a6" title="" data-t-title="app.dialogs.color.teal"></button>
+        <button type="button" class="swatch" data-color="#f43f5e" style="--c:#f43f5e" title="" data-t-title="app.dialogs.color.crimson"></button>
       </div>
-      <label>Произвольный цвет
+      <label><span data-t="app.dialogs.color.custom">Произвольный цвет</span>
         <input id="colorCustom" type="color" value="#3b82f6">
       </label>
       <menu>
-  <button type="button" value="clear" class="btn">Сбросить</button>
-  <button value="ok" class="btn primary">Применить</button>
+        <button type="button" value="clear" class="btn" data-t="app.dialogs.datetime.clear">Сбросить</button>
+        <button value="ok" class="btn primary" data-t="app.dialogs.apply">Применить</button>
       </menu>
     </form>
   </dialog>

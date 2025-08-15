@@ -7,7 +7,7 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <title>Админка — Trellolite</title>
+  <title data-t="admin.title">Админка — Trellolite</title>
   <link rel="icon" type="image/png" href="/web/favicon.png" sizes="32x32">
   <link rel="stylesheet" href="/web/styles.css">
   <link rel="stylesheet" href="/web/admin.css">
@@ -20,15 +20,15 @@
           <span class="logo-text">Trellolite Admin</span>
         </h1>
         <nav class="admin-tabs">
-          <button id="tabUsers" class="tab-btn active" data-tab="users">Пользователи</button>
-          <button id="tabGroups" class="tab-btn" data-tab="groups">Группы</button>
-          <button id="tabSettings" class="tab-btn" data-tab="settings">Настройки</button>
+          <button id="tabUsers" class="tab-btn active" data-tab="users" data-t="admin.tabs.users">Пользователи</button>
+          <button id="tabGroups" class="tab-btn" data-tab="groups" data-t="admin.tabs.groups">Группы</button>
+          <button id="tabSettings" class="tab-btn" data-tab="settings" data-t="admin.tabs.settings">Настройки</button>
         </nav>
         <div class="admin-user-info">
           <span id="adminUserName">—</span>
           <div class="spacer"></div>
-          <button id="btnBackToApp" class="btn" title="Вернуться в приложение">← Назад</button>
-          <button id="btnAdminLogout" class="btn" title="Выйти">Выйти</button>
+          <button id="btnBackToApp" class="btn" data-t="admin.back" data-t-title="admin.back">← Назад</button>
+          <button id="btnAdminLogout" class="btn" data-t="admin.logout" data-t-title="admin.logout">Выйти</button>
         </div>
       </div>
     </header>
@@ -37,10 +37,10 @@
       <!-- Users Tab -->
       <section id="usersTab" class="tab-content active">
         <div class="content-header">
-          <h2>Управление пользователями</h2>
+          <h2 data-t="admin.users.manage">Управление пользователями</h2>
           <div class="actions">
-            <input id="userSearch" type="text" placeholder="Поиск по email или имени..." class="search-input">
-            <button id="btnCreateUser" class="btn primary">Создать пользователя</button>
+            <input id="userSearch" type="text" class="search-input" data-t-placeholder="admin.users.search" placeholder="Поиск по email или имени...">
+            <button id="btnCreateUser" class="btn primary" data-t="admin.users.create">Создать пользователя</button>
           </div>
         </div>
         
@@ -49,16 +49,16 @@
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Имя</th>
+                <th data-t="admin.users.table.name">Имя</th>
                 <th>Email</th>
-                <th>Создан</th>
-                <th>Админ</th>
-                <th>Почта</th>
-                <th>Действия</th>
+                <th data-t="admin.users.table.created">Создан</th>
+                <th data-t="admin.users.table.admin">Админ</th>
+                <th data-t="admin.users.table.emailv">Почта</th>
+                <th data-t="admin.users.table.actions">Действия</th>
               </tr>
             </thead>
             <tbody id="usersTableBody">
-              <tr><td colspan="7" class="loading">Загрузка...</td></tr>
+              <tr><td colspan="7" class="loading" data-t="admin.users.loading">Загрузка...</td></tr>
             </tbody>
           </table>
         </div>
@@ -67,9 +67,9 @@
       <!-- Groups Tab -->
       <section id="groupsTab" class="tab-content">
         <div class="content-header">
-          <h2>Управление группами</h2>
+          <h2 data-t="admin.groups.manage">Управление группами</h2>
           <div class="actions">
-            <button id="btnCreateGroup" class="btn primary">Создать группу</button>
+            <button id="btnCreateGroup" class="btn primary" data-t="admin.groups.create">Создать группу</button>
           </div>
         </div>
         
@@ -78,14 +78,14 @@
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Название</th>
-                <th>Участники</th>
-                <th>Создан</th>
-                <th>Действия</th>
+                <th data-t="admin.groups.table.name">Название</th>
+                <th data-t="admin.groups.table.members">Участники</th>
+                <th data-t="admin.groups.table.created">Создан</th>
+                <th data-t="admin.groups.table.actions">Действия</th>
               </tr>
             </thead>
             <tbody id="groupsTableBody">
-              <tr><td colspan="5" class="loading">Загрузка...</td></tr>
+              <tr><td colspan="5" class="loading" data-t="admin.groups.loading">Загрузка...</td></tr>
             </tbody>
           </table>
         </div>
@@ -94,44 +94,44 @@
       <!-- Settings Tab -->
       <section id="settingsTab" class="tab-content">
         <div class="content-header">
-          <h2>Системные настройки</h2>
+          <h2 data-t="admin.settings.system">Системные настройки</h2>
         </div>
         
         <div class="settings-grid">
           <div class="setting-card">
-            <h3>OAuth Providers</h3>
+            <h3 data-t="admin.settings.oauth">OAuth Providers</h3>
             <div class="setting-row">
-              <label>GitHub OAuth</label>
+              <label data-t="admin.settings.github">GitHub OAuth</label>
               <span id="githubStatus" class="status">—</span>
             </div>
             <div class="setting-row">
-              <label>Google OAuth</label>
+              <label data-t="admin.settings.google">Google OAuth</label>
               <span id="googleStatus" class="status">—</span>
             </div>
           </div>
 
           <div class="setting-card">
-            <h3>Почта (SMTP)</h3>
+            <h3 data-t="admin.settings.mail">Почта (SMTP)</h3>
             <div class="setting-row">
-              <label>Конфигурация SMTP</label>
+              <label data-t="admin.settings.smtp_cfg">Конфигурация SMTP</label>
               <span id="smtpStatus" class="status">—</span>
             </div>
           </div>
           
           <div class="setting-card">
-            <h3>Статистика</h3>
+            <h3 data-t="admin.settings.stats">Статистика</h3>
             <div class="stats-grid">
               <div class="stat-item">
                 <span class="stat-value" id="totalUsers">—</span>
-                <span class="stat-label">Пользователей</span>
+                <span class="stat-label" data-t="admin.settings.users">Пользователей</span>
               </div>
               <div class="stat-item">
                 <span class="stat-value" id="totalGroups">—</span>
-                <span class="stat-label">Групп</span>
+                <span class="stat-label" data-t="admin.settings.groups">Групп</span>
               </div>
               <div class="stat-item">
                 <span class="stat-value" id="totalBoards">—</span>
-                <span class="stat-label">Досок</span>
+                <span class="stat-label" data-t="admin.settings.boards">Досок</span>
               </div>
             </div>
           </div>
@@ -144,7 +144,7 @@
   <dialog id="dlgUser" class="user-dialog">
     <div class="user-dialog-container">
       <div class="user-dialog-header">
-        <h2 id="userDialogTitle">Редактировать пользователя</h2>
+        <h2 id="userDialogTitle" data-t="admin.users.dlg_title_new">Редактировать пользователя</h2>
         <button type="button" class="close-btn" id="btnCloseUserDialog">×</button>
       </div>
       
@@ -152,17 +152,17 @@
         <input type="hidden" id="userId" name="id">
         
         <div class="form-group">
-          <label for="userName">Имя</label>
-          <input type="text" id="userName" name="name" required maxlength="100" placeholder="Введите имя">
+          <label for="userName" data-t="profile.name">Имя</label>
+          <input type="text" id="userName" name="name" required maxlength="100" data-t-placeholder="admin.users.form.name_ph" placeholder="Введите имя">
         </div>
         
         <div class="form-group">
           <label for="userEmail">Email</label>
-          <input type="email" id="userEmail" name="email" required maxlength="200" placeholder="email@example.com">
+          <input type="email" id="userEmail" name="email" required maxlength="200" data-t-placeholder="auth.register.email_placeholder" placeholder="you@example.com">
         </div>
         
         <div class="form-group" id="passwordField">
-          <label for="userPassword">Пароль</label>
+          <label for="userPassword" data-t="auth.login.password">Пароль</label>
           <input type="password" id="userPassword" name="password" minlength="6" placeholder="Минимум 6 символов">
         </div>
         
@@ -170,12 +170,12 @@
           <label class="checkbox-label">
             <input type="checkbox" id="userIsAdmin" name="is_admin">
             <span class="checkmark"></span>
-            Администратор
+            <span data-t="admin.users.form.is_admin">Администратор</span>
           </label>
           <label class="checkbox-label">
             <input type="checkbox" id="userEmailVerified" name="email_verified">
             <span class="checkmark"></span>
-            Почта подтверждена
+            <span data-t="admin.users.form.email_verified">Почта подтверждена</span>
           </label>
           <span id="userEmailVerifiedBadge" class="status">—</span>
         </div>
@@ -183,8 +183,8 @@
         <div id="userFormStatus" class="form-status"></div>
         
         <div class="form-actions">
-          <button type="button" class="btn btn-secondary" id="btnCancelUserDialog">Отмена</button>
-          <button type="submit" class="btn btn-primary">Сохранить</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelUserDialog" data-t="app.dialogs.cancel">Отмена</button>
+          <button type="submit" class="btn btn-primary" data-t="app.dialogs.save">Сохранить</button>
         </div>
       </form>
     </div>
@@ -194,7 +194,7 @@
   <dialog id="dlgGroup" class="user-dialog">
     <div class="user-dialog-container">
       <div class="user-dialog-header">
-        <h2 id="groupDialogTitle">Создать группу</h2>
+        <h2 id="groupDialogTitle" data-t="admin.groups.dlg_title_new">Создать группу</h2>
         <button type="button" class="close-btn" id="btnCloseGroupDialog">×</button>
       </div>
       
@@ -202,15 +202,15 @@
         <input type="hidden" id="groupId" name="id">
         
         <div class="form-group">
-          <label for="groupName">Название группы</label>
-          <input type="text" id="groupName" name="name" required maxlength="200" placeholder="Введите название группы">
+          <label for="groupName" data-t="admin.groups.form.name_label">Название группы</label>
+          <input type="text" id="groupName" name="name" required maxlength="200" data-t-placeholder="admin.groups.form.name_ph" placeholder="Введите название группы">
         </div>
         
         <div id="groupFormStatus" class="form-status"></div>
         
         <div class="form-actions">
-          <button type="button" class="btn btn-secondary" id="btnCancelGroupDialog">Отмена</button>
-          <button type="submit" class="btn btn-primary">Сохранить</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelGroupDialog" data-t="app.dialogs.cancel">Отмена</button>
+          <button type="submit" class="btn btn-primary" data-t="app.dialogs.save">Сохранить</button>
         </div>
       </form>
     </div>
@@ -220,22 +220,22 @@
   <dialog id="dlgGroupMembers" class="members-dialog">
     <div class="members-dialog-container">
       <div class="members-dialog-header">
-        <h2>Участники группы: <span id="groupMembersTitle">—</span></h2>
+        <h2><span data-t="admin.groups.members">Участники</span>: <span id="groupMembersTitle">—</span></h2>
         <button type="button" class="close-btn" id="btnCloseMembersDialog">×</button>
       </div>
       
       <div class="members-dialog-content">
         <div class="search-section">
           <div class="form-group">
-            <label for="memberSearch">Поиск пользователя</label>
-            <input type="text" id="memberSearch" placeholder="Введите email или имя пользователя" class="search-input-modern">
+            <label for="memberSearch" data-t="app.dialogs.members.search">Поиск пользователя</label>
+            <input type="text" id="memberSearch" class="search-input-modern" data-t-placeholder="admin.users.search" placeholder="Поиск по email или имени...">
           </div>
         </div>
         
         <div id="membersStatus" class="form-status"></div>
         
         <div class="members-section">
-          <h3>Участники</h3>
+          <h3 data-t="admin.groups.members">Участники</h3>
           <div id="membersList" class="members-list-modern"></div>
         </div>
       </div>
@@ -246,21 +246,22 @@
   <dialog id="dlgConfirm" class="confirm-dialog">
     <div class="confirm-dialog-container">
       <div class="confirm-dialog-header">
-        <h2>Подтверждение</h2>
+        <h2 data-t="app.dialogs.confirm">Подтверждение</h2>
       </div>
       
       <div class="confirm-dialog-content">
         <div class="confirm-icon">⚠️</div>
-        <p id="confirmMessage" class="confirm-message">Вы уверены?</p>
+        <p id="confirmMessage" class="confirm-message" data-t="app.dialogs.are_you_sure">Вы уверены?</p>
       </div>
       
       <div class="confirm-dialog-actions">
-        <button type="button" class="btn btn-secondary" id="btnCancelConfirm">Отмена</button>
-        <button type="button" class="btn btn-danger" id="btnConfirmOk">Продолжить</button>
+        <button type="button" class="btn btn-secondary" id="btnCancelConfirm" data-t="app.dialogs.cancel">Отмена</button>
+        <button type="button" class="btn btn-danger" id="btnConfirmOk" data-t="admin.confirm.continue">Продолжить</button>
       </div>
     </div>
   </dialog>
 
+  <script src="/web/i18n/i18n.js" defer></script>
   <script src="/web/admin.js" defer></script>
 </body>
 </html>
