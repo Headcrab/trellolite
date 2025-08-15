@@ -71,6 +71,7 @@ async function fetchJSON(url, opts={}){
 }
 
 const state = { boards: [], currentBoardId: null, boardMembers: new Map(), lists: [], cards: new Map(), currentCard: null, dragListCrossDrop: false, user: null, searchQuery: '' };
+const DND_MIME = 'application/x-trellolite';
 const el = (id) => document.getElementById(id);
 const els = { boards: el('boards'), boardTitle: el('boardTitle'), lists: el('lists'),
   dlgBoard: el('dlgBoard'), formBoard: el('formBoard'), dlgList: el('dlgList'),
@@ -1505,22 +1506,56 @@ async function openDateTimePicker(initialISO){
 function enableCardsDnD(container){
   container.addEventListener('dragstart', e => {
     const card = e.target.closest('.card'); if(!card) return; card.classList.add('dragging');
-    e.dataTransfer.setData('text/plain', card.dataset.id);
+    const cardId = card.dataset.id;
+    const listId = container.dataset.listId;
+    if(e.dataTransfer){
+      e.dataTransfer.setData('text/plain', cardId);
+      try{ e.dataTransfer.setData(DND_MIME, JSON.stringify({ kind:'card', id: Number(cardId), list_id: Number(listId), board_id: state.currentBoardId })); }catch{}
+      e.dataTransfer.effectAllowed = 'move';
+    }
   });
   container.addEventListener('dragend', e => { const card = e.target.closest('.card'); if(card) card.classList.remove('dragging'); });
   container.addEventListener('dragover', e => {
+    // Разрешаем drop и локально двигаем, если перетаскивание внутри окна
+    const types = (e.dataTransfer && e.dataTransfer.types) || [];
+    if(types.includes('Files')) return; // не принимаем файлы
     e.preventDefault();
-    const afterEl = getDragAfterElement(container, e.clientY);
-    const dragging = document.querySelector('.card.dragging'); if(!dragging) return;
-    if(afterEl == null) container.appendChild(dragging); else container.insertBefore(dragging, afterEl);
+    const dragging = document.querySelector('.card.dragging');
+    if(dragging){
+      const afterEl = getDragAfterElement(container, e.clientY);
+      if(afterEl == null) container.appendChild(dragging); else container.insertBefore(dragging, afterEl);
+    } else {
+      // Внешний drag: просто показываем курсор перемещения
+      if(e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    }
   });
   container.addEventListener('drop', async e => {
     e.preventDefault();
-    const dragging = document.querySelector('.card.dragging'); if(!dragging) return; dragging.classList.remove('dragging');
-    const cardId = parseInt(dragging.dataset.id, 10);
     const listId = parseInt(container.dataset.listId, 10);
-    const newIndex = [...container.querySelectorAll('.card')].findIndex(x => x.dataset.id == dragging.dataset.id);
-    try { await api.moveCard(cardId, listId, newIndex); } catch(err){ alert('Не удалось переместить: ' + err.message); }
+    // Попытка внутреннего dnd
+    const dragging = document.querySelector('.card.dragging');
+    if(dragging){
+      dragging.classList.remove('dragging');
+      const cardId = parseInt(dragging.dataset.id, 10);
+      const newIndex = (() => {
+        const after = getDragAfterElement(container, e.clientY);
+        const cards = [...container.querySelectorAll('.card')].filter(x=>x!==dragging);
+        return (after ? cards.indexOf(after) : cards.length);
+      })();
+      try { await api.moveCard(cardId, listId, newIndex); } catch(err){ alert((typeof t==='function'? t('app.errors.cant_move',{msg: err.message}) : ('Не удалось переместить: '+err.message))); }
+      return;
+    }
+    // Внешний dnd из другого окна
+    let payload = null;
+    try{ if(e.dataTransfer && e.dataTransfer.getData){ const raw = e.dataTransfer.getData(DND_MIME) || e.dataTransfer.getData('text/plain'); if(raw){ try{ payload = JSON.parse(raw); }catch{ /* may be plain id */ if(/^\d+$/.test(raw)) payload = {kind:'card', id: Number(raw)}; } } } }catch{}
+    if(payload && payload.kind === 'card'){
+      const newIndex = (() => {
+        const after = getDragAfterElement(container, e.clientY);
+        const cards = [...container.querySelectorAll('.card')];
+        return (after ? cards.indexOf(after) : cards.length);
+      })();
+      try { await api.moveCard(Number(payload.id), listId, newIndex); } catch(err){ alert((typeof t==='function'? t('app.errors.cant_move',{msg: err.message}) : ('Не удалось переместить: '+err.message))); }
+    }
   });
 }
 
@@ -1555,7 +1590,11 @@ function enableListsDnD(listColumn){
     if(listColumn.dataset.dragAllowed !== '1'){ e.preventDefault(); listColumn.draggable = false; return; }
     delete listColumn.dataset.dragAllowed;
     listColumn.classList.add('dragging');
-    e.dataTransfer.setData('text/plain', listColumn.dataset.id);
+    if(e.dataTransfer){
+      e.dataTransfer.setData('text/plain', listColumn.dataset.id);
+      try{ e.dataTransfer.setData(DND_MIME, JSON.stringify({ kind:'list', id: Number(listColumn.dataset.id), board_id: state.currentBoardId })); }catch{}
+      e.dataTransfer.effectAllowed = 'move';
+    }
   });
   listColumn.addEventListener('dragend', async e => {
     if(state.dragListCrossDrop){
@@ -1573,10 +1612,27 @@ function enableListsDnD(listColumn){
   const container = document.querySelector('.lists');
   if(!container.dataset.dndListsAttached){
     container.addEventListener('dragover', e => {
-      const dragging = document.querySelector('.list.dragging'); if(!dragging) return;
+      const dragging = document.querySelector('.list.dragging');
+      const types = (e.dataTransfer && e.dataTransfer.types) || [];
+      if(dragging){
+        e.preventDefault();
+        const after = getDragAfterList(container, e.clientX);
+        if(after == null) container.appendChild(dragging); else container.insertBefore(dragging, after);
+      } else if(types.includes(DND_MIME) || types.includes('text/plain')){
+        // Внешний dnd списка допускаем
+        e.preventDefault(); if(e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      }
+    });
+    container.addEventListener('drop', async e => {
+      // Обработка внешнего dnd списка в текущую доску
+      const dragging = document.querySelector('.list.dragging'); if(dragging) return; // внутренний обрабатывается на dragend
+      let payload = null; try{ const raw = e.dataTransfer?.getData(DND_MIME) || e.dataTransfer?.getData('text/plain'); if(raw){ try{ payload = JSON.parse(raw); }catch{ if(/^\d+$/.test(raw)) payload = {kind:'list', id:Number(raw)}; } } }catch{}
+      if(!(payload && payload.kind==='list')) return;
       e.preventDefault();
       const after = getDragAfterList(container, e.clientX);
-      if(after == null) container.appendChild(dragging); else container.insertBefore(dragging, after);
+      const cols = [...container.querySelectorAll('.list')];
+      const newIndex = (after ? cols.indexOf(after) : cols.length);
+      try{ await api.moveList(Number(payload.id), newIndex, state.currentBoardId); }catch(err){ console.warn('Не удалось переместить список:', err.message); }
     });
     container.dataset.dndListsAttached = '1';
   }
@@ -1630,19 +1686,25 @@ function enableBoardsDnD(){
   // Accept dropping list headers onto boards to move list between boards
   container.addEventListener('dragover', e => {
     const draggingList = document.querySelector('.lists .list.dragging');
-    if(!draggingList) return; e.preventDefault();
+    const types = (e.dataTransfer && e.dataTransfer.types) || [];
+    if(draggingList){ e.preventDefault(); return; }
+    if(types.includes(DND_MIME) || types.includes('text/plain')){ e.preventDefault(); if(e.dataTransfer) e.dataTransfer.dropEffect = 'move'; }
   });
   container.addEventListener('drop', async e => {
     e.preventDefault(); e.stopPropagation();
-    const draggingList = document.querySelector('.lists .list.dragging'); if(!draggingList) return;
     const li = e.target.closest('li'); if(!li) return;
     const targetBoardId = parseInt(li.dataset.id, 10);
-    const listId = parseInt(draggingList.dataset.id, 10);
-    try {
-      // move to end by default when moved to another board
-      await api.moveList(listId, 1<<30, targetBoardId);
-      state.dragListCrossDrop = true;
-    } catch(err){ console.warn('Не удалось переместить список между досками:', err.message); }
+    const draggingList = document.querySelector('.lists .list.dragging');
+    if(draggingList){
+      const listId = parseInt(draggingList.dataset.id, 10);
+      try { await api.moveList(listId, 1<<30, targetBoardId); state.dragListCrossDrop = true; } catch(err){ console.warn('Не удалось переместить список между досками:', err.message); }
+      return;
+    }
+    // Внешний dnd списка
+    let payload=null; try{ const raw = e.dataTransfer?.getData(DND_MIME) || e.dataTransfer?.getData('text/plain'); if(raw){ try{ payload=JSON.parse(raw); }catch{ if(/^\d+$/.test(raw)) payload={kind:'list', id:Number(raw)}; } } }catch{}
+    if(payload && payload.kind==='list'){
+      try { await api.moveList(Number(payload.id), 1<<30, targetBoardId); } catch(err){ console.warn('Не удалось переместить список между досками:', err.message); }
+    }
   });
 }
 
