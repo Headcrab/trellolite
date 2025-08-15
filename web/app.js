@@ -148,7 +148,11 @@ async function init(){
   // Theme init
   const mode = getPreferredTheme(); setTheme(mode); applyThemeIcon(mode);
   // Sidebar collapsed state init
-  try{ const saved = JSON.parse(localStorage.getItem('sidebarCollapsed')||''); if(typeof saved === 'boolean') applySidebarState(saved); }catch{}
+  try{
+    const saved = JSON.parse(localStorage.getItem('sidebarCollapsed')||'');
+    if(typeof saved === 'boolean') applySidebarState(saved);
+    else applySidebarState(false); // ensure initial title/aria-label
+  }catch{ applySidebarState(false); }
   const btnSidebar = document.getElementById('btnSidebarToggle');
   if(btnSidebar){
     btnSidebar.addEventListener('click', () => {
@@ -257,8 +261,8 @@ function bindUI(){
   }
   els.btnNewBoard.addEventListener('click', async () => {
     els.formBoard.reset();
-    // populate projects
-    const sel = document.getElementById('projectSelect'); if(sel){ sel.innerHTML=''; try{ const items = await api.listProjects(); const opt0=document.createElement('option'); opt0.value=''; opt0.textContent='(без проекта)'; sel.appendChild(opt0); for(const p of (items||[])){ const o=document.createElement('option'); o.value=String(p.id); o.textContent=p.name; sel.appendChild(o);} } catch{} }
+  // populate projects
+  const sel = document.getElementById('projectSelect'); if(sel){ sel.innerHTML=''; try{ const items = await api.listProjects(); const opt0=document.createElement('option'); opt0.value=''; opt0.textContent=(typeof t==='function'? t('app.dialogs.board_new.no_project') : '(без проекта)'); sel.appendChild(opt0); for(const p of (items||[])){ const o=document.createElement('option'); o.value=String(p.id); o.textContent=p.name; sel.appendChild(o);} } catch{} }
     els.dlgBoard.returnValue=''; els.dlgBoard.showModal();
   });
   els.dlgBoard.addEventListener('close', async () => {
@@ -275,7 +279,7 @@ function bindUI(){
   const btnNewProject = document.getElementById('btnNewProject');
   if(btnNewProject){ btnNewProject.addEventListener('click', async () => {
   const name = await inputDialog({ title:(typeof t==='function'? t('app.dialogs.board_new.new_project') : 'Новый проект…'), label:(typeof t==='function'? t('app.dialogs.board_new.name') : 'Название') }); if(!name) return;
-    try { await api.createProject(name.trim()); const sel=document.getElementById('projectSelect'); if(sel){ const items = await api.listProjects(); sel.innerHTML=''; const opt0=document.createElement('option'); opt0.value=''; opt0.textContent='(без проекта)'; sel.appendChild(opt0); for(const p of (items||[])){ const o=document.createElement('option'); o.value=String(p.id); o.textContent=p.name; sel.appendChild(o);} sel.selectedIndex = 1; } }
+  try { await api.createProject(name.trim()); const sel=document.getElementById('projectSelect'); if(sel){ const items = await api.listProjects(); sel.innerHTML=''; const opt0=document.createElement('option'); opt0.value=''; opt0.textContent=(typeof t==='function'? t('app.dialogs.board_new.no_project') : '(без проекта)'); sel.appendChild(opt0); for(const p of (items||[])){ const o=document.createElement('option'); o.value=String(p.id); o.textContent=p.name; sel.appendChild(o);} sel.selectedIndex = 1; } }
   catch(err){ alert(typeof t==='function'? t('app.errors.cant_save',{msg: err.message}) : ('Не удалось создать проект: ' + err.message)); }
   }); }
 
@@ -374,13 +378,13 @@ function bindUI(){
   alert(typeof t==='function'? t('app.errors.failed') : 'Только владелец доски может управлять доступом.');
         return;
       }
-      groupsList.innerHTML = 'Загрузка...'; dlgGroups.returnValue=''; dlgGroups.showModal();
+      groupsList.innerHTML = (typeof t==='function'? t('profile.loading') : 'Загрузка...'); dlgGroups.returnValue=''; dlgGroups.showModal();
       try {
         const [mine, current] = await Promise.all([api.myGroups(), api.boardGroups(state.currentBoardId)]);
         const currentSet = new Set((current||[]).map(g=>g.id));
         groupsList.innerHTML = '';
         if(!mine || mine.length===0){
-          groupsList.textContent = 'Вы не состоите ни в одной группе.';
+          groupsList.textContent = (typeof t==='function'? t('app.dialogs.groups.empty') : 'Вы не состоите ни в одной группе.');
         } else {
           for(const g of mine){
             const id = `g_${g.id}`;
@@ -390,7 +394,7 @@ function bindUI(){
             groupsList.appendChild(row);
           }
         }
-      } catch(err){ groupsList.textContent = 'Ошибка загрузки групп: ' + err.message; }
+      } catch(err){ groupsList.textContent = (typeof t==='function'? t('app.dialogs.groups.error') : 'Ошибка загрузки групп') + ': ' + err.message; }
     });
     dlgGroups.addEventListener('close', async () => {
       if(dlgGroups.returnValue !== 'ok') return;
@@ -476,36 +480,39 @@ async function openGroupsPanel(){
   if(closeBtn){ closeBtn.onclick = () => dlg.close('cancel'); }
 
   const renderMine = async () => {
-    list.innerHTML = 'Загрузка…';
+    list.innerHTML = (typeof t==='function'? t('profile.loading') : 'Загрузка…');
     try {
       const mine = await api.myGroups();
       list.innerHTML = '';
       // Блок: создание своей группы
       const tools = document.createElement('div'); tools.className='admin-actions';
-      tools.innerHTML = `<input id="gpNewGroupNameUser" placeholder="Название группы"><button id="gpBtnCreateGroupUser" class="btn" type="button">Создать группу</button>`;
+      tools.innerHTML = `<input id="gpNewGroupNameUser" placeholder="${(typeof t==='function'? t('app.groups_panel.name_placeholder') : 'Название группы')}"><button id="gpBtnCreateGroupUser" class="btn" type="button">${(typeof t==='function'? t('app.groups_panel.create') : 'Создать группу')}</button>`;
       list.appendChild(tools);
-      const hint = document.createElement('div'); hint.className='muted'; hint.textContent = 'Создайте свои группы. Создатель — администратор.'; list.appendChild(hint);
+      const hint = document.createElement('div'); hint.className='muted'; hint.textContent = (typeof t==='function'? t('app.groups_panel.hint') : 'Создайте свои группы. Создатель — администратор.'); list.appendChild(hint);
 
       // Разделы: я админ и я участник
       const adminGroups = (mine||[]).filter(g => (g.role||0) >= 2);
       const memberGroups = (mine||[]).filter(g => (g.role||0) < 2);
 
       const section = (title) => { const h=document.createElement('h4'); h.textContent=title; list.appendChild(h); };
-      section('Мои группы (я админ)');
-      if(adminGroups.length===0){ const d=document.createElement('div'); d.className='muted'; d.textContent='Администратор ни в одной группе.'; list.appendChild(d); }
+      section(typeof t==='function'? t('app.groups_panel.admin_title') : 'Мои группы (я админ)');
+      if(adminGroups.length===0){ const d=document.createElement('div'); d.className='muted'; d.textContent=(typeof t==='function'? t('app.groups_panel.admin_empty') : 'Администратор ни в одной группе.'); list.appendChild(d); }
       for(const g of adminGroups){
         const row = document.createElement('div'); row.className='group-row';
-        row.innerHTML = `<span><svg aria-hidden="true" style="width:14px;height:14px;vertical-align:-2px;margin-right:6px"><use href="#i-users"></use></svg>${escapeHTML(g.name)}</span><div class="spacer"></div><button class="btn" data-act="users" data-id="${g.id}">Пользователи…</button><button class="btn" data-act="del" data-id="${g.id}">Удалить</button>`;
+        const usersLbl = (typeof t==='function'? t('app.groups_panel.users_btn') : 'Пользователи…');
+        const delLbl = (typeof t==='function'? t('app.groups_panel.delete_btn') : 'Удалить');
+        row.innerHTML = `<span><svg aria-hidden=\"true\" style=\"width:14px;height:14px;vertical-align:-2px;margin-right:6px\"><use href=\"#i-users\"></use></svg>${escapeHTML(g.name)}</span><div class=\"spacer\"></div><button class=\"btn\" data-act=\"users\" data-id=\"${g.id}\">${usersLbl}</button><button class=\"btn\" data-act=\"del\" data-id=\"${g.id}\">${delLbl}</button>`;
         list.appendChild(row);
       }
-      section('Группы, в которых я состою');
-      if(memberGroups.length===0){ const d=document.createElement('div'); d.className='muted'; d.textContent='Нет групп.'; list.appendChild(d); }
+      section(typeof t==='function'? t('app.groups_panel.member_title') : 'Группы, в которых я состою');
+      if(memberGroups.length===0){ const d=document.createElement('div'); d.className='muted'; d.textContent=(typeof t==='function'? t('app.groups_panel.member_empty') : 'Нет групп.'); list.appendChild(d); }
       for(const g of memberGroups){
         const row = document.createElement('div'); row.className='group-row';
-        row.innerHTML = `<span><svg aria-hidden="true" style="width:14px;height:14px;vertical-align:-2px;margin-right:6px"><use href="#i-user"></use></svg>${escapeHTML(g.name)}</span><div class="spacer"></div><button class="btn" data-act="leave" data-id="${g.id}">Выйти</button>`;
+        const leaveLbl = (typeof t==='function'? t('app.groups_panel.leave_btn') : 'Выйти');
+        row.innerHTML = `<span><svg aria-hidden=\"true\" style=\"width:14px;height:14px;vertical-align:-2px;margin-right:6px\"><use href=\"#i-user\"></use></svg>${escapeHTML(g.name)}</span><div class=\"spacer\"></div><button class=\"btn\" data-act=\"leave\" data-id=\"${g.id}\">${leaveLbl}</button>`;
         list.appendChild(row);
       }
-    } catch(err){ list.textContent = 'Ошибка: ' + err.message; }
+    } catch(err){ list.textContent = (typeof t==='function'? t('app.dialogs.members.status.error',{msg: err.message}) : ('Ошибка: ' + err.message)); }
   };
 
 
@@ -531,7 +538,7 @@ async function openGroupsPanel(){
     const btn = e.target.closest('button'); if(!btn) return;
     const id = parseInt(btn.dataset.id,10);
     if(btn.dataset.act==='del'){
-      const ok = await confirmDialog('Удалить группу?'); if(!ok) return;
+  const ok = await confirmDialog(typeof t==='function'? t('app.groups_panel.confirm_delete') : 'Удалить группу?'); if(!ok) return;
       try{
         // Если пользователь админ — удаление своей группы, иначе (если админ системы) — админский маршрут
         if(state.user && state.user.is_admin){ try { await api.adminDeleteGroup(id); } catch(e) { /* может не быть прав если это чужая группа */ } }
@@ -544,7 +551,7 @@ async function openGroupsPanel(){
       openMembersDialogSelf(id);
     }
     if(btn.dataset.act==='leave'){
-      const ok = await confirmDialog('Покинуть эту группу?'); if(!ok) return;
+  const ok = await confirmDialog(typeof t==='function'? t('app.groups_panel.confirm_leave') : 'Покинуть эту группу?'); if(!ok) return;
       try { await api.myLeaveGroup(id); await rerender(); }
   catch(err){ alert(typeof t==='function'? t('app.errors.cant_save',{msg: err.message}) : ('Не удалось выйти из группы: ' + err.message)); }
     }
@@ -557,22 +564,22 @@ function openMembersDialogSelf(groupId){
   const cancelBtn = document.querySelector('#formMembers button[value="cancel"][type="button"]');
   if(cancelBtn){ cancelBtn.onclick = () => dlg.close('cancel'); }
   const renderMembers = async () => {
-    list.innerHTML = 'Загрузка...'; if(status) status.textContent='';
+    list.innerHTML = (typeof t==='function'? t('profile.loading') : 'Загрузка...'); if(status) status.textContent='';
     try{
       const users = await api.myGroupUsers(groupId);
       list.innerHTML = '';
       for(const u of (users||[])){
         const row = document.createElement('div'); row.className='group-row';
-  row.innerHTML = `<span>${escapeHTML(u.name || ('#'+u.id))}</span><div class="spacer"></div><button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`;
+  row.innerHTML = `<span>${escapeHTML(u.name || ('#'+u.id))}</span><div class=\"spacer\"></div><button class=\"btn\" data-act=\"rm\" data-id=\"${u.id}\">${(typeof t==='function'? t('app.dialogs.members.remove') : 'Убрать')}</button>`;
         list.appendChild(row);
       }
-      if(status) status.textContent = `Участников: ${(users||[]).length}`;
-      if(list.innerHTML==='') list.textContent = 'Пока пусто.';
-    }catch(err){ list.textContent = 'Ошибка: '+err.message; }
+      if(status) status.textContent = (typeof t==='function'? t('app.dialogs.members.status.count',{n:(users||[]).length}) : (`Участников: ${(users||[]).length}`));
+      if(list.innerHTML==='') list.textContent = (typeof t==='function'? t('app.dialogs.members.status.empty') : 'Пока пусто.');
+    }catch(err){ list.textContent = (typeof t==='function'? t('app.dialogs.members.status.error',{msg: err.message}) : ('Ошибка: '+err.message)); }
   };
   const searchAndRender = async () => {
     const q = (inp.value||'').trim(); if(!q){ renderMembers(); return; }
-    list.innerHTML = 'Поиск...'; if(status) status.textContent='';
+    list.innerHTML = (typeof t==='function'? t('profile.loading') : 'Поиск...'); if(status) status.textContent='';
     try{
       // использовать self-поиск
       const params = new URLSearchParams({ q, limit: '20' });
@@ -582,12 +589,12 @@ function openMembersDialogSelf(groupId){
       for(const u of (users||[])){
         const isMember = memberSet.has(u.id);
         const row = document.createElement('div'); row.className='group-row';
-  row.innerHTML = `<span>${escapeHTML(u.name || ('#'+u.id))}</span><div class="spacer"></div>` + (isMember? `<button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`: `<button class="btn" data-act="add" data-id="${u.id}">Добавить</button>`);
+  row.innerHTML = `<span>${escapeHTML(u.name || ('#'+u.id))}</span><div class=\"spacer\"></div>` + (isMember? `<button class=\"btn\" data-act=\"rm\" data-id=\"${u.id}\">${(typeof t==='function'? t('app.dialogs.members.remove') : 'Убрать')}</button>`: `<button class=\"btn\" data-act=\"add\" data-id=\"${u.id}\">${(typeof t==='function'? t('app.dialogs.members.add') : 'Добавить')}</button>`);
         list.appendChild(row);
       }
-      if(status) status.textContent = `Найдено: ${(users||[]).length}`;
-      if(list.innerHTML==='') list.textContent = 'Ничего не найдено.';
-    }catch(err){ list.textContent = 'Ошибка поиска: '+err.message; }
+      if(status) status.textContent = (typeof t==='function'? t('app.dialogs.members.status.found',{n:(users||[]).length}) : (`Найдено: ${(users||[]).length}`));
+      if(list.innerHTML==='') list.textContent = (typeof t==='function'? t('app.dialogs.members.status.not_found') : 'Ничего не найдено.');
+    }catch(err){ list.textContent = (typeof t==='function'? t('app.dialogs.members.status.search_error',{msg: err.message}) : ('Ошибка поиска: '+err.message)); }
   };
   list.onclick = async (e) => {
     const btn = e.target.closest('button'); if(!btn) return; const uid = parseInt(btn.dataset.id,10);
@@ -606,22 +613,22 @@ function openMembersDialog(groupId){
   const cancelBtn = document.querySelector('#formMembers button[value="cancel"][type="button"]');
   if(cancelBtn){ cancelBtn.onclick = () => dlg.close('cancel'); }
   const renderMembers = async () => {
-    list.innerHTML = 'Загрузка...'; if(status) status.textContent='';
+    list.innerHTML = (typeof t==='function'? t('profile.loading') : 'Загрузка...'); if(status) status.textContent='';
     try{
       const users = await api.adminGroupUsers(groupId);
       list.innerHTML = '';
       for(const u of (users||[])){
         const row = document.createElement('div'); row.className='group-row';
-  row.innerHTML = `<span>${escapeHTML(u.name || ('#'+u.id))}</span><div class="spacer"></div><button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`;
+  row.innerHTML = `<span>${escapeHTML(u.name || ('#'+u.id))}</span><div class=\"spacer\"></div><button class=\"btn\" data-act=\"rm\" data-id=\"${u.id}\">${(typeof t==='function'? t('app.dialogs.members.remove') : 'Убрать')}</button>`;
         list.appendChild(row);
       }
-      if(status) status.textContent = `Участников: ${(users||[]).length}`;
-      if(list.innerHTML==='') list.textContent = 'Пока пусто.';
-    }catch(err){ list.textContent = 'Ошибка: '+err.message; }
+      if(status) status.textContent = (typeof t==='function'? t('app.dialogs.members.status.count',{n:(users||[]).length}) : (`Участников: ${(users||[]).length}`));
+      if(list.innerHTML==='') list.textContent = (typeof t==='function'? t('app.dialogs.members.status.empty') : 'Пока пусто.');
+    }catch(err){ list.textContent = (typeof t==='function'? t('app.dialogs.members.status.error',{msg: err.message}) : ('Ошибка: '+err.message)); }
   };
   const searchAndRender = async () => {
     const q = (inp.value||'').trim(); if(!q){ renderMembers(); return; }
-    list.innerHTML = 'Поиск...'; if(status) status.textContent='';
+    list.innerHTML = (typeof t==='function'? t('profile.loading') : 'Поиск...'); if(status) status.textContent='';
     try{
       const users = await api.adminListUsers(q, 20);
       const members = await api.adminGroupUsers(groupId); const memberSet = new Set((members||[]).map(u=>u.id));
@@ -629,12 +636,12 @@ function openMembersDialog(groupId){
       for(const u of (users||[])){
         const isMember = memberSet.has(u.id);
         const row = document.createElement('div'); row.className='group-row';
-  row.innerHTML = `<span>${escapeHTML(u.name || ('#'+u.id))}</span><div class="spacer"></div>` + (isMember? `<button class="btn" data-act="rm" data-id="${u.id}">Убрать</button>`: `<button class="btn" data-act="add" data-id="${u.id}">Добавить</button>`);
+  row.innerHTML = `<span>${escapeHTML(u.name || ('#'+u.id))}</span><div class=\"spacer\"></div>` + (isMember? `<button class=\"btn\" data-act=\"rm\" data-id=\"${u.id}\">${(typeof t==='function'? t('app.dialogs.members.remove') : 'Убрать')}</button>`: `<button class=\"btn\" data-act=\"add\" data-id=\"${u.id}\">${(typeof t==='function'? t('app.dialogs.members.add') : 'Добавить')}</button>`);
         list.appendChild(row);
       }
-      if(status) status.textContent = `Найдено: ${(users||[]).length}`;
-      if(list.innerHTML==='') list.textContent = 'Ничего не найдено.';
-    }catch(err){ list.textContent = 'Ошибка поиска: '+err.message; }
+      if(status) status.textContent = (typeof t==='function'? t('app.dialogs.members.status.found',{n:(users||[]).length}) : (`Найдено: ${(users||[]).length}`));
+      if(list.innerHTML==='') list.textContent = (typeof t==='function'? t('app.dialogs.members.status.not_found') : 'Ничего не найдено.');
+    }catch(err){ list.textContent = (typeof t==='function'? t('app.dialogs.members.status.search_error',{msg: err.message}) : ('Ошибка поиска: '+err.message)); }
   };
   list.onclick = async (e) => {
     const btn = e.target.closest('button'); if(!btn) return; const uid = parseInt(btn.dataset.id,10);
@@ -744,16 +751,16 @@ async function buildContextMenuItems(e){
     const listId = parseInt(targetCard.closest('.cards')?.dataset.listId || '0', 10);
     const c = (state.cards.get(listId) || []).find(x => x.id === id);
     return [
-  { label: 'Открыть/Редактировать', action: () => openCard(c) },
-  { label: 'Дубликат карточки', action: async () => { await duplicateCard(id, listId); } },
-  { label: 'Переместить…', action: async () => { await moveCardPrompt(id, listId); } },
-      { label: 'Цвет…', action: async () => {
+  { label: (typeof t==='function'? t('app.ctx.open_edit') : 'Открыть/Редактировать'), action: () => openCard(c) },
+  { label: (typeof t==='function'? t('app.ctx.duplicate_card') : 'Дубликат карточки'), action: async () => { await duplicateCard(id, listId); } },
+  { label: (typeof t==='function'? t('app.ctx.move') : 'Переместить…'), action: async () => { await moveCardPrompt(id, listId); } },
+      { label: (typeof t==='function'? t('app.ctx.color') : 'Цвет…'), action: async () => {
           const color = await pickColor(c?.color || ''); if(color === undefined) return;
           try { await api.updateCardFields(id, { color: color || '' }); if(c){ c.color = color || ''; const el = document.querySelector(`.card[data-id="${id}"]`); if(el){ if(c.color) el.style.setProperty('--clr', c.color); else el.style.removeProperty('--clr'); } } }
           catch(err){ alert(typeof t==='function'? t('app.errors.cant_save',{msg: err.message}) : ('Не удалось сохранить цвет карточки: ' + err.message)); }
         } },
       { label: '---' },
-      { label: 'Удалить карточку', danger: true, action: async () => {
+      { label: (typeof t==='function'? t('app.ctx.delete_card') : 'Удалить карточку'), danger: true, action: async () => {
           const ok = await confirmDialog('Удалить карточку безвозвратно?'); if(!ok) return;
           try { await api.deleteCard(id); const el = document.querySelector(`.card[data-id="${id}"]`); if(el) el.remove(); const arr = state.cards.get(listId) || []; state.cards.set(listId, arr.filter(x=>x.id!==id)); }
           catch(err){ alert(typeof t==='function'? t('app.errors.cant_save',{msg: err.message}) : ('Не удалось удалить карточку: ' + err.message)); }
@@ -766,22 +773,22 @@ async function buildContextMenuItems(e){
     const listId = parseInt(targetList.dataset.id, 10);
     const l = state.lists.find(x => x.id === listId);
     return [
-      { label: 'Добавить карточку', action: () => { els.formCard.reset(); els.formCard.dataset.listId = listId; els.dlgCard.returnValue=''; els.dlgCard.showModal(); } },
-    { label: 'Переименовать список', action: async () => {
+      { label: (typeof t==='function'? t('app.ctx.add_card') : 'Добавить карточку'), action: () => { els.formCard.reset(); els.formCard.dataset.listId = listId; els.dlgCard.returnValue=''; els.dlgCard.showModal(); } },
+    { label: (typeof t==='function'? t('app.ctx.rename_list') : 'Переименовать список'), action: async () => {
       const current = l?.title || targetList.querySelector('h3')?.textContent?.trim() || '';
       const name = await inputDialog({ title:'Переименование списка', label:'Новое название', value: current }); if(!name || !name.trim() || name.trim() === current) return;
           try { await api.updateList(listId, { title: name.trim() }); if(l){ l.title = name.trim(); } const h3 = targetList.querySelector('h3'); if(h3) h3.textContent = name.trim(); }
           catch(err){ alert(typeof t==='function'? t('app.errors.cant_save',{msg: err.message}) : ('Не удалось переименовать: ' + err.message)); }
         } },
-  { label: 'Дубликат списка', action: async () => { await duplicateList(listId); } },
-  { label: 'Переместить…', action: async () => { await moveListPrompt(listId); } },
-      { label: 'Цвет…', action: async () => {
+  { label: (typeof t==='function'? t('app.ctx.duplicate_list') : 'Дубликат списка'), action: async () => { await duplicateList(listId); } },
+  { label: (typeof t==='function'? t('app.ctx.move') : 'Переместить…'), action: async () => { await moveListPrompt(listId); } },
+      { label: (typeof t==='function'? t('app.ctx.color') : 'Цвет…'), action: async () => {
           const color = await pickColor(l?.color || ''); if(color === undefined) return;
           try { await api.updateList(listId, { color: color || '' }); if(l){ l.color = color || ''; } if(color) targetList.style.setProperty('--clr', color); else targetList.style.removeProperty('--clr'); }
           catch(err){ alert(typeof t==='function'? t('app.errors.cant_save',{msg: err.message}) : ('Не удалось сохранить цвет списка: ' + err.message)); }
         } },
       { label: '---' },
-      { label: 'Удалить список', danger: true, action: async () => {
+      { label: (typeof t==='function'? t('app.ctx.delete_list') : 'Удалить список'), danger: true, action: async () => {
           const ok = await confirmDialog('Удалить список и его карточки?'); if(!ok) return;
           try { await api.deleteList(listId); state.lists = state.lists.filter(x => x.id !== listId); state.cards.delete(listId); targetList.remove(); }
           catch(err){ alert(typeof t==='function'? t('app.errors.cant_save',{msg: err.message}) : ('Не удалось удалить список: ' + err.message)); }
@@ -795,20 +802,20 @@ async function buildContextMenuItems(e){
     const b = state.boards.find(x => x.id === boardId);
     const isOwner = !!(state.user && b && b.created_by && state.user.id === b.created_by);
     return [
-      { label: 'Открыть доску', action: () => openBoard(boardId) },
-    { label: 'Переименовать доску', disabled: !isOwner, action: async () => {
+      { label: (typeof t==='function'? t('app.ctx.open_board') : 'Открыть доску'), action: () => openBoard(boardId) },
+    { label: (typeof t==='function'? t('app.ctx.rename_board') : 'Переименовать доску'), disabled: !isOwner, action: async () => {
       const current = b?.title || targetBoardLi.querySelector('.t')?.textContent?.trim() || '';
       const name = await inputDialog({ title:'Переименование доски', label:'Новое название', value: current }); if(!name || !name.trim() || name.trim() === current) return;
           try { await api.updateBoard(boardId, name.trim()); if(b){ b.title = name.trim(); } const t = targetBoardLi.querySelector('.t'); if(t) t.textContent = name.trim(); await refreshBoards(); }
           catch(err){ alert('Не удалось переименовать: ' + err.message); }
         } },
-      { label: 'Цвет…', disabled: !isOwner, action: async () => {
+      { label: (typeof t==='function'? t('app.ctx.color') : 'Цвет…'), disabled: !isOwner, action: async () => {
           const color = await pickColor(b?.color || ''); if(color === undefined) return;
           try { await api.setBoardColor(boardId, color || ''); if(b){ b.color = color || ''; } if(color) targetBoardLi.style.setProperty('--clr', color); else targetBoardLi.style.removeProperty('--clr'); }
           catch(err){ alert('Не удалось сохранить цвет доски: ' + err.message); }
         } },
       { label: '---' },
-      { label: 'Удалить доску', danger: true, disabled: !isOwner, action: async () => {
+      { label: (typeof t==='function'? t('app.ctx.delete_board') : 'Удалить доску'), danger: true, disabled: !isOwner, action: async () => {
           const ok = await confirmDialog('Удалить доску безвозвратно?'); if(!ok) return;
           try { await api.deleteBoard(boardId); await refreshBoards(); if(state.currentBoardId === boardId){ state.currentBoardId = null; els.boardTitle.textContent=''; els.lists.innerHTML=''; }
           } catch(err){ alert('Не удалось удалить доску: ' + err.message); }
@@ -819,7 +826,7 @@ async function buildContextMenuItems(e){
   // Containers / empty areas
   if(e.target.closest('#boards')){
     return [
-      { label: 'Новая доска', action: () => { els.formBoard.reset(); els.dlgBoard.returnValue=''; els.dlgBoard.showModal(); } },
+  { label: (typeof t==='function'? t('app.ctx.new_board') : 'Новая доска'), action: () => { els.formBoard.reset(); els.dlgBoard.returnValue=''; els.dlgBoard.showModal(); } },
     ];
   }
   if(e.target.closest('#boardHeader') || e.target.closest('.main')){
@@ -829,27 +836,27 @@ async function buildContextMenuItems(e){
     if(boardId){
       const isOwner = !!(state.user && b && b.created_by && state.user.id === b.created_by);
       base.push(
-        { label: 'Новый список', action: () => { if(!state.currentBoardId) return; els.formList.reset(); els.dlgList.returnValue=''; els.dlgList.showModal(); } },
-    { label: 'Переименовать доску', disabled: !isOwner, action: async () => {
+        { label: (typeof t==='function'? t('app.ctx.new_list') : 'Новый список'), action: () => { if(!state.currentBoardId) return; els.formList.reset(); els.dlgList.returnValue=''; els.dlgList.showModal(); } },
+    { label: (typeof t==='function'? t('app.ctx.rename_board') : 'Переименовать доску'), disabled: !isOwner, action: async () => {
       const current = els.boardTitle.textContent.trim();
       const name = await inputDialog({ title:'Переименование доски', label:'Новое название', value: current }); if(!name || !name.trim() || name.trim() === current) return;
             try { await api.updateBoard(boardId, name.trim()); els.boardTitle.textContent = name.trim(); await refreshBoards(); }
             catch(err){ alert('Не удалось переименовать: ' + err.message); }
           } },
-        { label: 'Цвет…', disabled: !isOwner, action: async () => {
+        { label: (typeof t==='function'? t('app.ctx.color') : 'Цвет…'), disabled: !isOwner, action: async () => {
             const color = await pickColor(b?.color || ''); if(color === undefined) return;
             try { await api.setBoardColor(boardId, color || ''); if(b){ b.color = color || ''; } await refreshBoards(); }
             catch(err){ alert('Не удалось сохранить цвет доски: ' + err.message); }
           } },
         { label: '---' },
-        { label: 'Удалить доску', danger: true, disabled: !isOwner, action: async () => {
+        { label: (typeof t==='function'? t('app.ctx.delete_board') : 'Удалить доску'), danger: true, disabled: !isOwner, action: async () => {
             const ok = await confirmDialog('Удалить текущую доску безвозвратно?'); if(!ok) return;
             try { await api.deleteBoard(boardId); await refreshBoards(); state.currentBoardId = null; els.boardTitle.textContent = ''; els.lists.innerHTML=''; }
             catch(err){ alert('Не удалось удалить доску: ' + err.message); }
           } },
       );
     } else {
-      base.push({ label: 'Новая доска', action: () => { els.formBoard.reset(); els.dlgBoard.returnValue=''; els.dlgBoard.showModal(); } });
+      base.push({ label: (typeof t==='function'? t('app.ctx.new_board') : 'Новая доска'), action: () => { els.formBoard.reset(); els.dlgBoard.returnValue=''; els.dlgBoard.showModal(); } });
     }
     return base;
   }
@@ -857,11 +864,11 @@ async function buildContextMenuItems(e){
   const cardsContainer = e.target.closest('.cards');
   if(cardsContainer){
     const listId = parseInt(cardsContainer.dataset.listId || '0', 10);
-    return [ { label: 'Добавить карточку', action: () => { els.formCard.reset(); els.formCard.dataset.listId = listId; els.dlgCard.returnValue=''; els.dlgCard.showModal(); } } ];
+  return [ { label: (typeof t==='function'? t('app.ctx.add_card') : 'Добавить карточку'), action: () => { els.formCard.reset(); els.formCard.dataset.listId = listId; els.dlgCard.returnValue=''; els.dlgCard.showModal(); } } ];
   }
 
   // Fallback: generic new board
-  return [ { label: 'Новая доска', action: () => { els.formBoard.reset(); els.dlgBoard.returnValue=''; els.dlgBoard.showModal(); } } ];
+  return [ { label: (typeof t==='function'? t('app.ctx.new_board') : 'Новая доска'), action: () => { els.formBoard.reset(); els.dlgBoard.returnValue=''; els.dlgBoard.showModal(); } } ];
 }
 
 // Duplicate a card in the same list (title, description, due_at, color)
@@ -1144,18 +1151,18 @@ function buildListColumn(l){
   const col = document.createElement('section'); col.className='list'; col.dataset.id = l.id;
   col.innerHTML = `
     <header>
-      <span class="drag-handle" title="Перетащить список" aria-label="Перетащить">
+  <span class="drag-handle" title="${(typeof t==='function'? t('app.sidebar.drag_list') : 'Перетащить список')}" aria-label="${(typeof t==='function'? t('app.sidebar.drag_list') : 'Перетащить список')}">
         <svg aria-hidden="true"><use href="#i-grip"></use></svg>
       </span>
       <h3 contenteditable="true" spellcheck="false">${escapeHTML(l.title)}</h3>
       <div class="spacer"></div>
-  <button class="btn icon btn-color" title="Цвет списка" aria-label="Цвет"><svg aria-hidden="true"><use href="#i-palette"></use></svg></button>
-  <button class="btn icon btn-del-list" title="Удалить список" aria-label="Удалить список">
+  <button class="btn icon btn-color" title="${(typeof t==='function'? t('app.ctx.color') : 'Цвет…')}" aria-label="${(typeof t==='function'? t('app.ctx.color') : 'Цвет…')}"><svg aria-hidden="true"><use href="#i-palette"></use></svg></button>
+  <button class="btn icon btn-del-list" title="${(typeof t==='function'? t('app.ctx.delete_list') : 'Удалить список')}" aria-label="${(typeof t==='function'? t('app.ctx.delete_list') : 'Удалить список')}">
         <svg aria-hidden="true"><use href="#i-trash" xlink:href="#i-trash"></use></svg>
       </button>
     </header>
     <div class="cards" data-list-id="${l.id}"></div>
-    <div class="add-card"><button class="btn btn-add-card">Добавить карточку</button></div>`;
+    <div class="add-card"><button class="btn btn-add-card">${(typeof t==='function'? t('app.ctx.add_card') : 'Добавить карточку')}</button></div>`;
 
   const titleEl = col.querySelector('h3');
   titleEl.addEventListener('blur', async () => {
@@ -1217,9 +1224,10 @@ function renderCard(c){
   let assigneeHTML = '';
   if(c.assignee_id && state.currentBoardId && state.boardMembers.has(state.currentBoardId)){
     const u = (state.boardMembers.get(state.currentBoardId)||[]).find(x => x.id === c.assignee_id);
-    if(u){ const initials = (u.name||u.email||'?').trim().slice(0,1).toUpperCase(); assigneeHTML = `<span class="assignee" title="Исполнитель: ${escapeHTML(u.name||u.email)}">${escapeHTML(initials)}</span>`; }
+  if(u){ const initials = (u.name||u.email||'?').trim().slice(0,1).toUpperCase(); const title = (typeof t==='function' ? t('app.dialogs.card.assignee_title', {name: (u.name||u.email)}) : ('Исполнитель: '+(u.name||u.email))); assigneeHTML = `<span class="assignee" title="${escapeHTML(title)}">${escapeHTML(initials)}</span>`; }
   }
-  el.innerHTML = `<span class="ico"><svg aria-hidden="true"><use href="#i-card"></use></svg></span><div class="title">${escapeHTML(c.title)}</div><div class="spacer"></div>${assigneeHTML}<button class="btn icon btn-color" title="Цвет карточки" aria-label="Цвет"><svg aria-hidden="true"><use href="#i-palette"></use></svg></button>`;
+  const cardColorLbl = (typeof t==='function'? t('app.ctx.color') : 'Цвет…');
+  el.innerHTML = `<span class="ico"><svg aria-hidden="true"><use href="#i-card"></use></svg></span><div class="title">${escapeHTML(c.title)}</div><div class="spacer"></div>${assigneeHTML}<button class="btn icon btn-color" title="${cardColorLbl}" aria-label="${cardColorLbl}"><svg aria-hidden="true"><use href="#i-palette"></use></svg></button>`;
   el.addEventListener('dblclick', () => openCard(c));
   if(c.color){ el.style.setProperty('--clr', c.color); }
   const colorBtn = el.querySelector('.btn-color');
@@ -1279,8 +1287,9 @@ function applyMdToggle(c){
   let btn = document.getElementById('cvMdToggle');
   if(!btn){
     btn = document.createElement('button');
-    btn.id = 'cvMdToggle'; btn.type = 'button'; btn.className = 'btn icon';
-    btn.title = 'Markdown'; btn.setAttribute('aria-label','Markdown');
+  btn.id = 'cvMdToggle'; btn.type = 'button'; btn.className = 'btn icon';
+  const mdLbl = (typeof t==='function'? t('app.dialogs.card.markdown') : 'Markdown');
+  btn.title = mdLbl; btn.setAttribute('aria-label', mdLbl);
     btn.innerHTML = '<svg aria-hidden="true"><use href="#i-markdown"></use></svg>';
     wrap.appendChild(btn);
     btn.addEventListener('click', () => {

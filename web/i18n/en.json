@@ -12,7 +12,8 @@
       "profile": "Profile",
       "settings": "Settings",
       "admin": "Administration",
-      "logout": "Log out"
+      "logout": "Log out",
+      "user_aria": "User menu"
     },
     "sidebar": {
       "boards": "Boards",
@@ -20,9 +21,13 @@
       "groups": "Groups",
   "expand": "Expand panel",
   "collapse": "Collapse panel",
+      "scope_aria": "Boards filter",
+      "mine_hint": "Show my boards",
+      "groups_hint": "Show group boards",
       "new_board": "New board",
       "groups_panel": "Groups…",
       "drag_board": "Drag board",
+  "drag_list": "Drag list",
       "color": "Color"
     },
     "board": {
@@ -33,6 +38,20 @@
       "policy": "Privacy",
       "loading": "Loading…",
       "load_error": "Load error"
+    },
+    "groups_panel": {
+      "name_placeholder": "Group name",
+      "create": "Create group",
+      "hint": "Create your own groups. Creator is the administrator.",
+      "admin_title": "My groups (I'm admin)",
+      "admin_empty": "Not an admin in any group.",
+      "users_btn": "Users…",
+      "delete_btn": "Delete",
+      "member_title": "Groups I'm a member of",
+      "member_empty": "No groups.",
+      "leave_btn": "Leave",
+      "confirm_delete": "Delete the group?",
+      "confirm_leave": "Leave this group?"
     },
     "dialogs": {
       "ok": "OK",
@@ -99,6 +118,8 @@
         "due": "Due",
         "assignee": "Assignee",
   "not_assigned": "— Not assigned —",
+  "assignee_title": "Assignee: {name}",
+  "markdown": "Markdown",
         "comments": "Comments",
         "add_comment": "Add",
         "create": "Create",

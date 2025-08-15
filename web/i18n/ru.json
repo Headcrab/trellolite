@@ -3,16 +3,20 @@
     "brand": "Trellolite",
     "search": {"placeholder": "Поиск", "boards_aria": "Поиск по доскам"},
     "theme": {"toggle": "Переключить тему"},
-    "menu": {"profile": "Профиль", "settings": "Настройки", "admin": "Администрирование", "logout": "Выйти"},
+  "menu": {"profile": "Профиль", "settings": "Настройки", "admin": "Администрирование", "logout": "Выйти", "user_aria": "Меню пользователя"},
     "sidebar": {
       "boards": "Доски",
       "mine": "Мои",
       "groups": "Группы",
   "expand": "Развернуть панель",
   "collapse": "Свернуть панель",
+      "scope_aria": "Фильтр досок",
+      "mine_hint": "Показать мои доски",
+      "groups_hint": "Показать доски из групп",
       "new_board": "Новая доска",
       "groups_panel": "Группы…",
       "drag_board": "Перетащить доску",
+  "drag_list": "Перетащить список",
       "color": "Цвет"
     },
     "board": {
@@ -23,6 +27,20 @@
       "policy": "Политика",
       "loading": "Загрузка...",
       "load_error": "Ошибка загрузки"
+    },
+    "groups_panel": {
+      "name_placeholder": "Название группы",
+      "create": "Создать группу",
+      "hint": "Создайте свои группы. Создатель — администратор.",
+      "admin_title": "Мои группы (я админ)",
+      "admin_empty": "Администратор ни в одной группе.",
+      "users_btn": "Пользователи…",
+      "delete_btn": "Удалить",
+      "member_title": "Группы, в которых я состою",
+      "member_empty": "Нет групп.",
+      "leave_btn": "Выйти",
+      "confirm_delete": "Удалить группу?",
+      "confirm_leave": "Покинуть эту группу?"
     },
     "dialogs": {
       "ok": "ОК",
@@ -89,6 +107,8 @@
         "due": "Срок",
         "assignee": "Исполнитель",
   "not_assigned": "— Не назначен —",
+  "assignee_title": "Исполнитель: {name}",
+  "markdown": "Markdown",
         "comments": "Комментарии",
         "add_comment": "Добавить",
         "create": "Создать",
