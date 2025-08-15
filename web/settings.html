@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="google-site-verification" content="dlgd_dJjtuNNs_lShQtUtyxGA7JIhrE9iY9RXILDesU">
+  <title>Настройки — Trellolite</title>
+  <link rel="icon" type="image/png" href="/web/favicon.png" sizes="32x32">
+  <link rel="stylesheet" href="/web/styles.css">
+</head>
+<body>
+  <header class="topbar" role="banner">
+    <div class="tb-left">
+      <a href="/web/index.html" class="btn icon" title="На главную" aria-label="На главную"><svg aria-hidden="true"><use href="#i-chevr-left"></use></svg></a>
+      <span class="brand">Настройки</span>
+    </div>
+    <div class="tb-center"></div>
+    <div class="tb-right">
+      <button id="btnTheme" class="btn icon" title="Переключить тему" aria-label="Переключить тему"><svg aria-hidden="true"><use href="#i-auto"></use></svg></button>
+      <a href="/web/index.html" class="btn">К доскам</a>
+    </div>
+  </header>
+  <main class="main" style="padding:16px;">
+    <h1>Настройки</h1>
+    <div id="settingsStatus" class="muted">Загрузка…</div>
+    <form id="settingsForm" class="form" style="display:none" onsubmit="return false">
+      <div class="field">
+        <label for="themeSelect">Тема</label>
+        <select id="themeSelect">
+          <option value="auto">Авто</option>
+          <option value="light">Светлая</option>
+          <option value="dark">Тёмная</option>
+        </select>
+      </div>
+    </form>
+  </main>
+
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="i-auto" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 8.66 5l-2.31.77A7.5 7.5 0 1 1 6.23 6.23L7 3.92A10 10 0 0 0 12 2Z"/></symbol>
+    <symbol id="i-chevr-left" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12l-4.58 4.59Z"/></symbol>
+  </svg>
+  <script>
+    function getPreferredTheme(){ const saved = localStorage.getItem('theme'); return (saved==='light'||saved==='dark'||saved==='auto')?saved:'auto'; }
+    function setTheme(mode){ const html=document.documentElement; if(mode==='auto') html.removeAttribute('data-theme'); else html.setAttribute('data-theme',mode); }
+    function applyThemeIcon(mode){ const btn=document.getElementById('btnTheme'); const useEl=btn&&btn.querySelector('use'); if(useEl){ const icon=mode==='dark'?'#i-moon':mode==='light'?'#i-sun':'#i-auto'; useEl.setAttribute('href',icon); } }
+    (function init(){ const mode=getPreferredTheme(); setTheme(mode); applyThemeIcon(mode); const b=document.getElementById('btnTheme'); if(b){ b.addEventListener('click',()=>{ const cur=getPreferredTheme(); const next=cur==='auto'?'light':cur==='light'?'dark':'auto'; localStorage.setItem('theme',next); setTheme(next); applyThemeIcon(next); const sel=document.getElementById('themeSelect'); if(sel) sel.value=next; }); } })();
+    async function fetchJSON(url, opts={}){ const init={headers:{'Content-Type':'application/json'}}; if(opts.method) init.method=opts.method; if(opts.body) init.body=JSON.stringify(opts.body); const res=await fetch(url,init); if(!res.ok){ if(res.status===401){ location.href='/web/login.html'; return; } throw new Error(await res.text()); } return res.status===204?null:res.json(); }
+    (async function(){ try{ const me = await fetchJSON('/api/auth/me'); const u = me && me.user; if(!u){ location.href='/web/login.html'; return; } document.getElementById('settingsStatus').style.display='none'; document.getElementById('settingsForm').style.display='block'; const sel=document.getElementById('themeSelect'); sel.value=getPreferredTheme(); sel.addEventListener('change',()=>{ const v=sel.value; localStorage.setItem('theme',v); setTheme(v); applyThemeIcon(v); }); }catch(err){ document.getElementById('settingsStatus').textContent='Ошибка: '+(err.message||''); } })();
+  </script>
+</body>
+</html>

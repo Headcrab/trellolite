@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="google-site-verification" content="dlgd_dJjtuNNs_lShQtUtyxGA7JIhrE9iY9RXILDesU">
+  <title>Профиль — Trellolite</title>
+  <link rel="icon" type="image/png" href="/web/favicon.png" sizes="32x32">
+  <link rel="stylesheet" href="/web/styles.css">
+</head>
+<body>
+  <header class="topbar" role="banner">
+    <div class="tb-left">
+      <a href="/web/index.html" class="btn icon" title="На главную" aria-label="На главную"><svg aria-hidden="true"><use href="#i-chevr-left"></use></svg></a>
+      <span class="brand">Профиль</span>
+    </div>
+    <div class="tb-center"></div>
+    <div class="tb-right">
+      <button id="btnTheme" class="btn icon" title="Переключить тему" aria-label="Переключить тему"><svg aria-hidden="true"><use href="#i-auto"></use></svg></button>
+      <a href="/web/index.html" class="btn">К доскам</a>
+    </div>
+  </header>
+  <main class="main" style="padding:16px;">
+    <h1>Профиль</h1>
+    <div id="profileStatus" class="muted">Загрузка…</div>
+    <form id="profileForm" class="form" style="display:none;" novalidate>
+      <div class="field">
+        <label for="inpName">Имя</label>
+        <div class="row">
+          <input id="inpName" class="input" type="text" placeholder="Ваше имя" required />
+          <button id="btnSave" type="submit" class="btn primary">Сохранить</button>
+        </div>
+        <div id="nameHelp" class="muted" style="margin-top:6px;">Это имя видно другим пользователям.</div>
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <div id="pfEmail" class="muted"></div>
+      </div>
+      <div class="field">
+        <label>Роль</label>
+        <div id="pfRole" class="muted"></div>
+      </div>
+      <div id="formMsg" class="status"></div>
+    </form>
+  </main>
+
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="i-auto" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 8.66 5l-2.31.77A7.5 7.5 0 1 1 6.23 6.23L7 3.92A10 10 0 0 0 12 2Z"/></symbol>
+    <symbol id="i-chevr-left" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12l4.58-4.59Z"/></symbol>
+  </svg>
+  <script>
+    async function fetchJSON(url, opts={}){
+      const init = {headers:{'Content-Type':'application/json'}};
+      if(opts.method) init.method = opts.method;
+      if(opts.body) init.body = JSON.stringify(opts.body);
+      const res = await fetch(url, init);
+      if(!res.ok){
+        if(res.status === 401){ location.href = '/web/login.html'; return; }
+        throw new Error(await res.text());
+      }
+      return res.status===204 ? null : res.json();
+    }
+    function applyThemeIcon(mode){
+      const btn = document.getElementById('btnTheme'); if(!btn) return;
+      const useEl = btn.querySelector('use');
+      const icon = mode === 'dark' ? '#i-moon' : mode === 'light' ? '#i-sun' : '#i-auto';
+      if(useEl) useEl.setAttribute('href', icon);
+    }
+    function getPreferredTheme(){ const saved = localStorage.getItem('theme'); return (saved==='light'||saved==='dark'||saved==='auto')?saved:'auto'; }
+    function setTheme(mode){ const html=document.documentElement; if(mode==='auto') html.removeAttribute('data-theme'); else html.setAttribute('data-theme',mode); applyThemeIcon(mode); }
+    (function init(){ const mode=getPreferredTheme(); setTheme(mode); const b=document.getElementById('btnTheme'); if(b){ b.addEventListener('click',()=>{ const cur=getPreferredTheme(); const next=cur==='auto'?'light':cur==='light'?'dark':'auto'; localStorage.setItem('theme',next); setTheme(next); }); } })();
+    (async function(){
+      try{
+        const me = await fetchJSON('/api/auth/me');
+        const u = me && me.user; if(!u){ location.href='/web/login.html'; return; }
+        document.getElementById('profileStatus').style.display='none';
+        document.getElementById('profileForm').style.display='block';
+        const inpName = document.getElementById('inpName');
+        const btnSave = document.getElementById('btnSave');
+        const msg = document.getElementById('formMsg');
+        inpName.value = u.name || '';
+        document.getElementById('pfEmail').textContent = u.email || '';
+        document.getElementById('pfRole').textContent = u.is_admin ? 'Администратор' : 'Пользователь';
+        function setBusy(b){ btnSave.disabled=b; btnSave.textContent = b? 'Сохранение…' : 'Сохранить'; }
+        document.getElementById('profileForm').addEventListener('submit', async (e)=>{
+          e.preventDefault(); msg.textContent='';
+          const name = inpName.value.trim(); if(!name){ msg.textContent='Введите имя'; inpName.focus(); return; }
+          try{ setBusy(true);
+            const res = await fetch('/api/me', {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name})});
+            if(!res.ok){ const t = await res.text(); throw new Error(t); }
+            const data = await res.json();
+            const nu = data.user || null; if(nu){ inpName.value = nu.name || name; }
+            msg.textContent = 'Сохранено';
+          }catch(err){ msg.textContent = 'Ошибка: ' + ((err && err.message) ? err.message : 'не удалось сохранить'); }
+          finally{ setBusy(false); }
+        });
+      }catch(err){ document.getElementById('profileStatus').textContent = 'Ошибка: ' + (err.message||''); }
+    })();
+  </script>
+</body>
+</html>

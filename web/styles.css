@@ -1,4 +1,5 @@
 :root{
+  --topbar-h:56px;
   /* Light theme palette */
   --bg:#f6f7fb;           /* app background */
   --panel:#ffffff;        /* panels, dialogs, lists */
@@ -23,8 +24,47 @@ html[data-theme="light"]{ --bg:#f6f7fb; --panel:#ffffff; --card:#ffffff; --ink:#
 *{box-sizing:border-box}
 body{margin:0; font:14px/1.5 system-ui,Segoe UI,Roboto,Ubuntu,Arial; background:var(--bg); color:var(--ink)}
 .muted{ color: var(--muted); }
-#app{display:grid; grid-template-columns:280px 1fr; height:100vh}
+#app{display:grid; grid-template-columns:280px 1fr; height:calc(100vh - var(--topbar-h))}
 #app.sidebar-collapsed{ grid-template-columns:min-content 1fr }
+.topbar{
+  position:sticky; top:0; z-index:1000;
+  height:var(--topbar-h);
+  display:grid; grid-template-columns:1fr 2fr 1fr; align-items:center;
+  gap:12px; padding:0 12px;
+  background:var(--panel); border-bottom:1px solid var(--border);
+}
+.topbar .brand{ font-weight:600; letter-spacing:.2px }
+.topbar .tb-left, .topbar .tb-center, .topbar .tb-right{ display:flex; align-items:center; gap:8px }
+.topbar .tb-center{ justify-content:center }
+.topbar .tb-right{ justify-content:flex-end }
+.topbar .search{ width:100%; max-width:520px }
+.topbar .search input{
+  width:100%; padding:8px 10px; border-radius:8px;
+  background:var(--bg); border:1px solid var(--border); color:var(--ink)
+}
+.avatar{
+  width:28px; height:28px; border-radius:50%;
+  background:color-mix(in srgb, var(--accent) 20%, var(--panel));
+  display:flex; align-items:center; justify-content:center; font-weight:700;
+}
+.avatarbtn{ display:flex; align-items:center; gap:8px; border-radius:10px; padding:4px 6px; cursor:pointer; border:1px solid transparent }
+.avatarbtn:hover{ background:var(--hover) }
+.usermenu{ position:relative }
+.usermenu > summary{ list-style:none }
+.usermenu > summary::-webkit-details-marker{ display:none }
+.menu-panel{
+  position:absolute; right:0; top:calc(100% + 8px);
+  width:260px; background:var(--panel); border:1px solid var(--border);
+  border-radius:12px; padding:6px; box-shadow:0 10px 30px rgba(2,6,23,.18), 0 4px 10px rgba(2,6,23,.08)
+}
+.usermenu:not([open]) .menu-panel{ display:none }
+.menu-panel .group{ padding:4px 4px 6px }
+.menu-panel .item{
+  display:block; width:100%; text-align:left; background:transparent; border:none;
+  padding:8px 10px; border-radius:8px; cursor:pointer; color:var(--ink); text-decoration:none
+}
+.menu-panel .item:hover{ background:var(--hover); text-decoration:none }
+.menu-panel .item.danger{ color:#b91c1c }
 .sidebar{padding:16px; background:var(--panel); border-right:1px solid var(--border); overflow:auto; display:flex; flex-direction:column}
 .sidebar .spacer{ flex:1 }
 .sidebar button#btnSidebarToggle{ opacity:.9 }
@@ -48,16 +88,7 @@ body{margin:0; font:14px/1.5 system-ui,Segoe UI,Roboto,Ubuntu,Arial; background:
 .boards-header .scope-toggle .btn.toggle svg{ width:16px; height:16px }
 .btn.toggle[aria-pressed="true"]{ background:color-mix(in srgb, var(--accent) 15%, var(--panel)); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
 .btn.toggle .lbl{ display:none }
-.userbar{display:flex; align-items:center; gap:10px; padding:10px; border:1px solid var(--border); border-radius:12px; background:var(--panel); margin-bottom:10px}
-.userbar .avatar{
-  width:32px; height:32px; border-radius:50%;
-  background:color-mix(in srgb, var(--accent) 20%, var(--panel));
-  display:flex; align-items:center; justify-content:center; font-weight:700;
-  aspect-ratio:1/1; overflow:hidden; flex:0 0 32px;
-}
-.userbar .userinfo{display:flex; flex-direction:column; min-width:0}
-.userbar .uname{font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.userbar .uemail{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+/* Блок .userbar больше не используется */
 .btn{background:var(--panel); border:1px solid var(--border); color:var(--ink); padding:8px 12px; border-radius:10px; cursor:pointer; transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .02s}
 .btn:hover{background:var(--hover)}
 .btn:active{transform:translateY(1px)}
@@ -372,6 +403,23 @@ dialog input, dialog textarea{width:100%}
 dialog select{background:var(--panel); border:1px solid var(--border); color:var(--ink); border-radius:10px; padding:10px; width:100%}
 dialog input::placeholder, dialog textarea::placeholder{color:var(--muted)}
 dialog input:focus, dialog textarea:focus{outline:none; border-color:color-mix(in srgb, var(--accent) 45%, var(--border)); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent)}
+
+/* Generic form styles (for pages like profile/settings), matching dialog look */
+.form{ max-width:720px; }
+.form .field{ margin:10px 0 }
+.form .field label{ display:block; margin:0 0 6px 0; font-size:14px; font-weight:500; color:var(--ink) }
+.form .field input,
+.form .field textarea,
+.form .field select{
+  width:100%; padding:10px; border-radius:10px;
+  background:var(--panel); border:1px solid var(--border); color:var(--ink);
+  font:inherit; box-sizing:border-box;
+}
+.form .field input:focus,
+.form .field textarea:focus,
+.form .field select:focus{ outline:none; border-color:color-mix(in srgb, var(--accent) 45%, var(--border)); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent) }
+.form .actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:12px }
+.form .status{ margin-top:8px; color:var(--muted) }
 
 /* Normalize calendar/time inputs across themes */
 input[type="date"], input[type="time"], input[type="datetime-local"]{

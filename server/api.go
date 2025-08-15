@@ -21,6 +21,9 @@ func (a *api) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/auth/oauth/google/start", a.handleGoogleStart)
 	mux.HandleFunc("GET /api/auth/oauth/google/callback", a.handleGoogleCallback)
 
+	// Profile / self-update
+	mux.HandleFunc("PATCH /api/me", a.requireAuth(a.handleUpdateMe))
+
 	// Dev password reset (magic link in logs)
 	mux.HandleFunc("POST /api/auth/reset", a.withRateLimit("auth_reset", 10, time.Minute, a.handleResetRequest))
 	mux.HandleFunc("POST /api/auth/reset/confirm", a.withRateLimit("auth_reset", 20, time.Minute, a.handleResetConfirm))

@@ -70,7 +70,7 @@ async function fetchJSON(url, opts={}){
   try { return JSON.parse(text); } catch { return null; }
 }
 
-const state = { boards: [], currentBoardId: null, boardMembers: new Map(), lists: [], cards: new Map(), currentCard: null, dragListCrossDrop: false, user: null };
+const state = { boards: [], currentBoardId: null, boardMembers: new Map(), lists: [], cards: new Map(), currentCard: null, dragListCrossDrop: false, user: null, searchQuery: '' };
 const el = (id) => document.getElementById(id);
 const els = { boards: el('boards'), boardTitle: el('boardTitle'), lists: el('lists'),
   dlgBoard: el('dlgBoard'), formBoard: el('formBoard'), dlgList: el('dlgList'),
@@ -206,6 +206,13 @@ async function init(){
   loadScope();
   const btnGroupsPanel = document.getElementById('btnGroupsPanel');
   if(btnGroupsPanel){ btnGroupsPanel.addEventListener('click', openGroupsPanel); }
+  // Topbar search binding (client-side filter)
+  const q = document.getElementById('q');
+  if(q){
+    const apply = () => { state.searchQuery = (q.value||'').trim().toLowerCase(); renderBoardsList(); };
+    let t; q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(apply, 150); });
+    q.addEventListener('keydown', (e) => { if(e.key === 'Escape'){ q.value=''; apply(); } });
+  }
 
   // Try to fetch current user; if not authorized, redirect to login (no anonymous access)
   try {
@@ -226,6 +233,21 @@ function bindUI(){
   
   const btnAdmin = document.getElementById('btnAdmin');
   if(btnAdmin){ btnAdmin.addEventListener('click', () => { location.href = '/web/admin.html'; }); }
+  // User menu close behaviors (click outside, on item, Esc)
+  const userMenu = document.getElementById('userMenu');
+  if(userMenu){
+    const panel = userMenu.querySelector('.menu-panel');
+    if(panel){
+      panel.addEventListener('click', (e) => {
+        const item = e.target && e.target.closest('[role="menuitem"]');
+        if(item){ userMenu.open = false; }
+      });
+    }
+    document.addEventListener('click', (e) => {
+      if(!userMenu.contains(e.target)) userMenu.open = false;
+    });
+    userMenu.addEventListener('keydown', (e) => { if(e.key === 'Escape'){ userMenu.open = false; } });
+  }
   els.btnNewBoard.addEventListener('click', async () => {
     els.formBoard.reset();
     // populate projects
@@ -619,24 +641,16 @@ function openMembersDialog(groupId){
 }
 
 function updateUserBar(){
-  const bar = document.getElementById('userBar'); if(!bar) return;
-  if(!state.user){ bar.hidden = true; return; }
-  const nameEl = document.getElementById('userName');
-  const emailEl = document.getElementById('userEmail');
-  const avEl = document.getElementById('userAvatar');
-  const name = state.user.name || state.user.email || '';
-  const email = state.user.email || '';
-  nameEl.textContent = name; emailEl.textContent = email;
-  const letter = (name || email).trim().charAt(0).toUpperCase() || 'U';
-  avEl.textContent = letter;
-  
-  // Show admin button for admins
+  // Toggle admin visibility in the new user menu
   const btnAdmin = document.getElementById('btnAdmin');
-  if(btnAdmin) {
-    btnAdmin.style.display = state.user.is_admin ? 'block' : 'none';
+  if(btnAdmin) { btnAdmin.style.display = (state.user && state.user.is_admin) ? 'block' : 'none'; }
+  // Update avatar letter in topbar
+  const avEl = document.querySelector('.topbar .avatar');
+  if(avEl){
+    const src = (state.user && (state.user.name || state.user.email)) || '';
+    const letter = (src.trim().charAt(0).toUpperCase() || 'U');
+    avEl.textContent = letter;
   }
-  
-  bar.hidden = false;
 }
 
 // ---- Context menu ----
@@ -967,30 +981,24 @@ function updateBoardHeaderActions(){
   for(const b of btns){ if(!b) continue; b.disabled = !enabled || (!isOwner && (b.id==='btnBoardGroups' || b===els.btnRenameBoard || b===els.btnDeleteBoard)); }
 }
 
-async function refreshBoards(){
-  // Определяем область на основе переключателей
-  const mineOn = (document.getElementById('scopeMine')?.getAttribute('aria-pressed')==='true');
-  const groupsOn = (document.getElementById('scopeGroups')?.getAttribute('aria-pressed')==='true');
-  const scope = mineOn && groupsOn ? 'all' : mineOn ? 'mine' : groupsOn ? 'groups' : 'mine';
-  const data = await api.getBoards(scope).catch(err => { console.warn('getBoards failed:', err.message); return null; });
-  state.boards = Array.isArray(data) ? data : (data && Array.isArray(data.boards) ? data.boards : []);
+function renderBoardsList(){
   els.boards.innerHTML = '';
-  for(const b of (state.boards || [])){
+  const q = (state.searchQuery||'').toLowerCase();
+  const list = (state.boards||[]).filter(b => !q || (b.title||'').toLowerCase().includes(q));
+  for(const b of list){
     const li = document.createElement('li');
-  li.dataset.id = b.id;
-  const isOwner = !!(state.user && b.created_by && state.user.id === b.created_by);
-  const iconId = (!isOwner && b.via_group) ? '#i-users' : '#i-board';
-  li.innerHTML = `<span class="drag-handle" title="Перетащить доску"><svg aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="ico"><svg aria-hidden="true"><use href="${iconId}"></use></svg></span><span class="t">${escapeHTML(b.title)}</span><button class="btn icon btn-color" title="Цвет доски" aria-label="Цвет"><svg aria-hidden="true"><use href="#i-palette"></use></svg></button>`;
+    li.dataset.id = b.id;
+    const isOwner = !!(state.user && b.created_by && state.user.id === b.created_by);
+    const iconId = (!isOwner && b.via_group) ? '#i-users' : '#i-board';
+    li.innerHTML = `<span class="drag-handle" title="Перетащить доску"><svg aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="ico"><svg aria-hidden="true"><use href="${iconId}"></use></svg></span><span class="t">${escapeHTML(b.title)}</span><button class="btn icon btn-color" title="Цвет доски" aria-label="Цвет"><svg aria-hidden="true"><use href="#i-palette"></use></svg></button>`;
     li.addEventListener('click', () => openBoard(b.id));
     if(b.color){ li.style.setProperty('--clr', b.color); }
     const colorBtn = li.querySelector('.btn-color');
     if(colorBtn){
       colorBtn.addEventListener('click', async (ev) => {
         ev.stopPropagation();
-        // Only owner may change board color
         if(!(state.user && b.created_by && state.user.id === b.created_by)) return;
-        const color = await pickColor(b.color || '');
-        if(color === undefined) return;
+        const color = await pickColor(b.color || ''); if(color === undefined) return;
         try { await api.setBoardColor(b.id, color || ''); b.color = color || ''; if(b.color) li.style.setProperty('--clr', b.color); else li.style.removeProperty('--clr'); }
         catch(err){ alert('Не удалось сохранить цвет: ' + err.message); }
       });
@@ -1002,6 +1010,17 @@ async function refreshBoards(){
     els.boards.appendChild(li);
   }
   enableBoardsDnD();
+  updateBoardHeaderActions();
+}
+
+async function refreshBoards(){
+  // Определяем область на основе переключателей
+  const mineOn = (document.getElementById('scopeMine')?.getAttribute('aria-pressed')==='true');
+  const groupsOn = (document.getElementById('scopeGroups')?.getAttribute('aria-pressed')==='true');
+  const scope = mineOn && groupsOn ? 'all' : mineOn ? 'mine' : groupsOn ? 'groups' : 'mine';
+  const data = await api.getBoards(scope).catch(err => { console.warn('getBoards failed:', err.message); return null; });
+  state.boards = Array.isArray(data) ? data : (data && Array.isArray(data.boards) ? data.boards : []);
+  renderBoardsList();
   // Ensure selection exists
   const ids = new Set((state.boards||[]).map(b=>b.id));
   if(!state.currentBoardId || !ids.has(state.currentBoardId)){
@@ -1010,7 +1029,6 @@ async function refreshBoards(){
       state.currentBoardId = null; els.boardTitle.textContent = ''; els.lists.innerHTML = '';
     }
   }
-  updateBoardHeaderActions();
 }
 
 async function openBoard(id){ state.currentBoardId = id; updateBoardHeaderActions(); await renderBoard(id);
