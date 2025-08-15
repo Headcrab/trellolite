@@ -70,7 +70,7 @@ async function fetchJSON(url, opts={}){
   try { return JSON.parse(text); } catch { return null; }
 }
 
-const state = { boards: [], currentBoardId: null, boardMembers: new Map(), lists: [], cards: new Map(), currentCard: null, dragListCrossDrop: false, user: null, searchQuery: '' };
+const state = { boards: [], currentBoardId: null, boardMembers: new Map(), lists: [], cards: new Map(), currentCard: null, dragListCrossDrop: false, user: null, searchQuery: '', boardHoverTimer: null, boardHoverTargetId: 0 };
 const DND_MIME = 'application/x-trellolite';
 const el = (id) => document.getElementById(id);
 const els = { boards: el('boards'), boardTitle: el('boardTitle'), lists: el('lists'),
@@ -1509,7 +1509,8 @@ function enableCardsDnD(container){
     const cardId = card.dataset.id;
     const listId = container.dataset.listId;
     if(e.dataTransfer){
-      e.dataTransfer.setData('text/plain', cardId);
+  // Добавляем префикс, чтобы однозначно отличать тип при fallback без custom MIME
+  e.dataTransfer.setData('text/plain', `trellolite:card:${cardId}`);
       try{ e.dataTransfer.setData(DND_MIME, JSON.stringify({ kind:'card', id: Number(cardId), list_id: Number(listId), board_id: state.currentBoardId })); }catch{}
       e.dataTransfer.effectAllowed = 'move';
     }
@@ -1547,7 +1548,19 @@ function enableCardsDnD(container){
     }
     // Внешний dnd из другого окна
     let payload = null;
-    try{ if(e.dataTransfer && e.dataTransfer.getData){ const raw = e.dataTransfer.getData(DND_MIME) || e.dataTransfer.getData('text/plain'); if(raw){ try{ payload = JSON.parse(raw); }catch{ /* may be plain id */ if(/^\d+$/.test(raw)) payload = {kind:'card', id: Number(raw)}; } } } }catch{}
+    try{
+      if(e.dataTransfer && e.dataTransfer.getData){
+        // Сначала пробуем наш custom MIME
+        const raw = e.dataTransfer.getData(DND_MIME) || '';
+        if(raw){ try{ payload = JSON.parse(raw); }catch{} }
+        // Fallback: распознаём наш безопасный префикс
+        if(!payload){
+          const tp = e.dataTransfer.getData('text/plain') || '';
+          const m = /^trellolite:card:(\d+)$/.exec(tp);
+          if(m){ payload = { kind:'card', id: Number(m[1]) }; }
+        }
+      }
+    }catch{}
     if(payload && payload.kind === 'card'){
       const newIndex = (() => {
         const after = getDragAfterElement(container, e.clientY);
@@ -1591,7 +1604,8 @@ function enableListsDnD(listColumn){
     delete listColumn.dataset.dragAllowed;
     listColumn.classList.add('dragging');
     if(e.dataTransfer){
-      e.dataTransfer.setData('text/plain', listColumn.dataset.id);
+  // Явный префикс для fallback
+  e.dataTransfer.setData('text/plain', `trellolite:list:${listColumn.dataset.id}`);
       try{ e.dataTransfer.setData(DND_MIME, JSON.stringify({ kind:'list', id: Number(listColumn.dataset.id), board_id: state.currentBoardId })); }catch{}
       e.dataTransfer.effectAllowed = 'move';
     }
@@ -1625,8 +1639,18 @@ function enableListsDnD(listColumn){
     });
     container.addEventListener('drop', async e => {
       // Обработка внешнего dnd списка в текущую доску
-      const dragging = document.querySelector('.list.dragging'); if(dragging) return; // внутренний обрабатывается на dragend
-      let payload = null; try{ const raw = e.dataTransfer?.getData(DND_MIME) || e.dataTransfer?.getData('text/plain'); if(raw){ try{ payload = JSON.parse(raw); }catch{ if(/^\d+$/.test(raw)) payload = {kind:'list', id:Number(raw)}; } } }catch{}
+  const dragging = document.querySelector('.list.dragging'); if(dragging) return; // внутренний обрабатывается на dragend
+  // Если тянем карточку — игнорируем drop на область колонок
+  if(document.querySelector('.card.dragging')) return;
+      let payload = null; try{
+        const raw = e.dataTransfer?.getData(DND_MIME) || '';
+        if(raw){ try{ payload = JSON.parse(raw); }catch{} }
+        if(!payload){
+          const tp = e.dataTransfer?.getData('text/plain') || '';
+          const m = /^trellolite:list:(\d+)$/.exec(tp);
+          if(m){ payload = { kind:'list', id: Number(m[1]) } }
+        }
+      }catch{}
       if(!(payload && payload.kind==='list')) return;
       e.preventDefault();
       const after = getDragAfterList(container, e.clientX);
@@ -1684,24 +1708,52 @@ function enableBoardsDnD(){
   });
 
   // Accept dropping list headers onto boards to move list between boards
-  container.addEventListener('dragover', e => {
-    const draggingList = document.querySelector('.lists .list.dragging');
-    const types = (e.dataTransfer && e.dataTransfer.types) || [];
-    if(draggingList){ e.preventDefault(); return; }
-    if(types.includes(DND_MIME) || types.includes('text/plain')){ e.preventDefault(); if(e.dataTransfer) e.dataTransfer.dropEffect = 'move'; }
-  });
+  function maybeScheduleOpenOnHover(e){
+    // Открывать доску при наведении карточкой на пункт в сайдбаре
+    const li = e.target && e.target.closest && e.target.closest('li');
+    if(!li){ if(state.boardHoverTimer){ clearTimeout(state.boardHoverTimer); state.boardHoverTimer=null; } return; }
+    // Определяем: тянем ли карточку
+    let isCardDrag = !!document.querySelector('.card.dragging');
+    if(!isCardDrag && e.dataTransfer){
+      try{
+        const raw = e.dataTransfer.getData(DND_MIME) || '';
+        if(raw){ const p = JSON.parse(raw); isCardDrag = (p && p.kind === 'card'); }
+      }catch{}
+    }
+    if(!isCardDrag) return;
+    const bid = parseInt(li.dataset.id, 10) || 0;
+    if(!bid || bid === state.currentBoardId) return;
+    if(state.boardHoverTargetId === bid && state.boardHoverTimer) return;
+    if(state.boardHoverTimer){ clearTimeout(state.boardHoverTimer); state.boardHoverTimer=null; }
+    state.boardHoverTargetId = bid;
+    state.boardHoverTimer = setTimeout(() => { openBoard(bid); state.boardHoverTimer=null; }, 450);
+  }
+  container.addEventListener('dragenter', maybeScheduleOpenOnHover);
+  container.addEventListener('dragover', e => { maybeScheduleOpenOnHover(e); const draggingList = document.querySelector('.lists .list.dragging'); const types=(e.dataTransfer&&e.dataTransfer.types)||[]; if(draggingList){ e.preventDefault(); return; } if(types.includes(DND_MIME) || types.includes('text/plain')){ e.preventDefault(); if(e.dataTransfer) e.dataTransfer.dropEffect='move'; } });
   container.addEventListener('drop', async e => {
     e.preventDefault(); e.stopPropagation();
+    if(state.boardHoverTimer){ clearTimeout(state.boardHoverTimer); state.boardHoverTimer=null; state.boardHoverTargetId=0; }
     const li = e.target.closest('li'); if(!li) return;
     const targetBoardId = parseInt(li.dataset.id, 10);
+  // Если тянем карточку, игнорируем drop на элемент доски — карточки нужно бросать в списки
+  const draggingCard = document.querySelector('.card.dragging');
+  if(draggingCard){ return; }
     const draggingList = document.querySelector('.lists .list.dragging');
     if(draggingList){
       const listId = parseInt(draggingList.dataset.id, 10);
       try { await api.moveList(listId, 1<<30, targetBoardId); state.dragListCrossDrop = true; } catch(err){ console.warn('Не удалось переместить список между досками:', err.message); }
       return;
     }
-    // Внешний dnd списка
-    let payload=null; try{ const raw = e.dataTransfer?.getData(DND_MIME) || e.dataTransfer?.getData('text/plain'); if(raw){ try{ payload=JSON.parse(raw); }catch{ if(/^\d+$/.test(raw)) payload={kind:'list', id:Number(raw)}; } } }catch{}
+    // Внешний dnd списка: принимаем только наш кастомный MIME или префиксованный fallback
+    let payload=null; try{
+      const raw = e.dataTransfer?.getData(DND_MIME) || '';
+      if(raw){ try{ payload=JSON.parse(raw); }catch{} }
+      if(!payload){
+        const tp = e.dataTransfer?.getData('text/plain') || '';
+        const m = /^trellolite:list:(\d+)$/.exec(tp);
+        if(m){ payload = { kind:'list', id: Number(m[1]) }; }
+      }
+    }catch{}
     if(payload && payload.kind==='list'){
       try { await api.moveList(Number(payload.id), 1<<30, targetBoardId); } catch(err){ console.warn('Не удалось переместить список между досками:', err.message); }
     }
