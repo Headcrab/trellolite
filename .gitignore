@@ -55,3 +55,4 @@ web/.cache/
 *.dump
 logo_.png
 logo.png
+.buildxcache/

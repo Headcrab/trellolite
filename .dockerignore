@@ -1,0 +1,25 @@
+# Ignore VCS, editor, and build artifacts
+.git
+.gitignore
+.vscode
+.idea
+node_modules
+**/*.log
+bin/
+obj/
+.DS_Store
+
+# Go build caches (not needed in context)
+**/*.test
+**/*.out
+**/*.exe
+**/*.dll
+**/*.so
+**/*.a
+**/*.o
+
+# Docker
+Dockerfile*
+
+# Exclude local data
+web/.cache

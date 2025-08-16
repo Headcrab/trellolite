@@ -16,7 +16,8 @@ services:
       retries: 10
 
   app:
-    build: .
+    build:
+      context: .
     depends_on:
       db:
         condition: service_healthy
