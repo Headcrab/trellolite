@@ -79,12 +79,26 @@ func main() {
 		}
 		cookieName := getenv("SESSION_COOKIE_NAME", "trellolite_sess")
 		if c, err := r.Cookie(cookieName); err == nil && c.Value != "" {
-			// Authenticated: serve app shell directly
-			http.ServeFile(w, r, "./web/index.html")
-			return
+			// Validate session token; don't trust mere presence of cookie
+			if u, err := store.UserBySession(r.Context(), c.Value); err == nil && u.ID != 0 {
+				http.ServeFile(w, r, "./web/index.html")
+				return
+			}
+			// Clear stale/invalid cookie to avoid loops into index.html -> login
+			http.SetCookie(w, &http.Cookie{
+				Name:     cookieName,
+				Value:    "",
+				Path:     "/",
+				HttpOnly: true,
+				Secure:   getenv("COOKIE_SECURE", "false") == "true",
+				SameSite: http.SameSiteLaxMode,
+				Expires:  time.Unix(0, 0),
+				MaxAge:   -1,
+			})
 		}
+		// Unauthenticated: show public home/landing page with links to login/register
 		noStore(w)
-		http.ServeFile(w, r, "./web/login.html")
+		http.ServeFile(w, r, "./web/home.html")
 	})
 
 	// Static assets under /web/

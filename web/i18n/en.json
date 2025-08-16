@@ -308,8 +308,29 @@
     "h1": "About Trellolite",
     "updated": "Last updated:",
     "purpose": "Purpose and features",
+    "purpose_intro": "Trellolite is a lightweight tool for task management and collaboration. Key features:",
+    "features": {
+      "boards": "Boards, lists, and task cards",
+      "details": "Assignees, due dates, comments (Markdown supported)",
+      "groups": "Board access groups and admin panel",
+      "auth": "Password login or OAuth (Google, GitHub)",
+      "email": "Email verification and account recovery"
+    },
     "google_why": "Why Google sign-in and what data is requested",
+    "google_intro": "Google sign-in is convenient and secure. The app requests only basic profile data:",
+    "google": {
+      "openid": "<strong>openid</strong> — a unique identifier for secure authentication;",
+      "email": "<strong>email</strong> — to identify the account and send security notifications (email verification, access recovery);",
+      "profile": "<strong>profile</strong> (name and avatar) — to display to members of your boards."
+    },
+    "google_note": "We do <strong>not</strong> request access to Gmail, Drive, Calendar, contacts, or other Google data. Data is not used for advertising.",
     "data_use": "How we use and store data",
+    "data": {
+      "use": "Use: sign-in and account creation, display name/avatar in the UI, service security notifications via email.",
+      "storage": "Storage: name, email, avatar URL (if any), OAuth provider identifier, as well as your boards/cards/comments.",
+      "protection": "Protection: HTTPS, role-based access control, security logs (up to 90 days).",
+      "control": "Control: you can revoke access in Google settings (myaccount.google.com/permissions) and delete the account in profile or upon request."
+    },
     "privacy": "Privacy policy",
     "support": "Support"
   },
@@ -329,5 +350,20 @@
     "security": "Security",
     "updates": "Policy updates",
     "note": "If you use Google login, links to the home page and this policy are placed on the same verified domain."
+  }
+  ,
+  "home": {
+    "title": "Trellolite — a lightweight kanban board",
+    "h1": "Trellolite",
+    "subtitle": "Simple, fast, and private kanban board for personal projects and teams. No noise — just tasks, lists, and collaboration.",
+    "register": "Register",
+    "login": "Log in",
+    "privacy": "Privacy policy",
+    "about": "About",
+    "features": {
+      "simplicity": {"title": "Kanban without complexity", "text": "Boards, lists, cards, comments. Everything you need — nothing extra."},
+      "live": {"title": "Live updates", "text": "Real-time updates via SSE. Collaboration without reloads."},
+      "access": {"title": "Easy access", "text": "OAuth, groups, access control. Works on any device."}
+    }
   }
 }

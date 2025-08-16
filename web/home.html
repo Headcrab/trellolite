@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-t="home.title">Trellolite — лёгкая канбан-доска</title>
+  <link rel="stylesheet" href="/web/styles.css">
+  <meta name="color-scheme" content="light dark">
+  <style>
+    .hero{ max-width:960px; margin:0 auto; padding:48px 16px; text-align:center }
+    .hero h1{ font-size:32px; margin:0 0 10px 0 }
+    .hero p{ color: var(--muted); margin: 0 0 22px 0 }
+    .cta{ display:flex; gap:12px; justify-content:center; margin:18px 0 6px }
+    .features{ display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; max-width:960px; margin:24px auto; padding:0 16px }
+    .feat{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; text-align:left }
+    .feat h3{ margin:0 0 6px 0; font-size:16px }
+    .foot{ text-align:center; color:var(--muted); margin:18px 0 48px }
+    @media(max-width: 760px){ .features{ grid-template-columns:1fr } }
+  </style>
+</head>
+<body>
+  <main class="hero">
+    <h1 data-t="home.h1">Trellolite</h1>
+    <p data-t="home.subtitle">Простая, быстрая и приватная канбан‑доска для личных проектов и команд. Без лишнего шума — только задачи, списки и взаимодействие.</p>
+    <div class="cta">
+      <a class="btn primary" href="/web/register.html" data-t="home.register">Регистрация</a>
+      <a class="btn" href="/web/login.html" data-t="home.login">Войти</a>
+    </div>
+  </main>
+  <section class="features">
+    <div class="feat">
+      <h3 data-t="home.features.simplicity.title">Канбан без сложностей</h3>
+      <p data-t="home.features.simplicity.text">Доски, списки, карточки, комментарии. Всё, что нужно — ничего лишнего.</p>
+    </div>
+    <div class="feat">
+      <h3 data-t="home.features.live.title">Живые обновления</h3>
+      <p data-t="home.features.live.text">Обновления в реальном времени через SSE. Совместная работа без перезагрузок.</p>
+    </div>
+    <div class="feat">
+      <h3 data-t="home.features.access.title">Лёгкий доступ</h3>
+      <p data-t="home.features.access.text">OAuth, группы, разграничение прав. Работает на любом устройстве.</p>
+    </div>
+  </section>
+  <p class="foot"><a class="link-privacy" href="/privacy" data-t="home.privacy">Политика конфиденциальности</a> · <a class="link-privacy" href="/about" data-t="home.about">О проекте</a></p>
+
+  <script src="/web/i18n/i18n.js" defer></script>
+</body>
+</html>
