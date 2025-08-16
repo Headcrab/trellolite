@@ -70,7 +70,7 @@ async function fetchJSON(url, opts={}){
   try { return JSON.parse(text); } catch { return null; }
 }
 
-const state = { boards: [], currentBoardId: null, boardMembers: new Map(), lists: [], cards: new Map(), currentCard: null, dragListCrossDrop: false, user: null, searchQuery: '', boardHoverTimer: null, boardHoverTargetId: 0 };
+const state = { boards: [], currentBoardId: null, boardMembers: new Map(), lists: [], cards: new Map(), currentCard: null, dragListCrossDrop: false, user: null, searchQuery: '', boardHoverTimer: null, boardHoverTargetId: 0, duplicationInProgress: false };
 const DND_MIME = 'application/x-trellolite';
 const el = (id) => document.getElementById(id);
 const els = { boards: el('boards'), boardTitle: el('boardTitle'), lists: el('lists'),
@@ -872,20 +872,34 @@ async function buildContextMenuItems(e){
   return [ { label: (typeof t==='function'? t('app.ctx.new_board') : 'Новая доска'), action: () => { els.formBoard.reset(); els.dlgBoard.returnValue=''; els.dlgBoard.showModal(); } } ];
 }
 
-// Duplicate a card in the same list (title, description, due_at, color)
-async function duplicateCard(cardId, listId){
-  const arr = state.cards.get(listId) || [];
-  const src = arr.find(x => x.id === cardId);
+// Duplicate a card (title, description, due_at, color).
+// If targetListId is omitted, duplicate into the same list.
+async function duplicateCard(cardId, sourceListId, targetListId){
+  const srcArr = state.cards.get(sourceListId) || [];
+  const src = srcArr.find(x => x.id === cardId);
   if(!src) return;
+  const destListId = (targetListId ?? sourceListId);
   try {
-  const created = await api.createCardAdvanced(listId, { title: src.title || '', description: src.description || '', description_is_md: !!src.description_is_md });
+    const created = await api.createCardAdvanced(destListId, {
+      title: src.title || '',
+      description: src.description || '',
+      description_is_md: !!src.description_is_md
+    });
     const payload = {};
     if(src.due_at) payload.due_at = src.due_at;
     if(src.color) payload.color = src.color;
-    if(Object.keys(payload).length){ try { await api.updateCardFields(created.id, payload); Object.assign(created, payload); } catch{} }
-    const cardsEl = document.querySelector(`.cards[data-list-id="${listId}"]`);
-    if(cardsEl){ cardsEl.appendChild(renderCard(created)); }
-    arr.push(created); state.cards.set(listId, arr);
+    if(Object.keys(payload).length){
+      try { await api.updateCardFields(created.id, payload); Object.assign(created, payload); } catch{}
+    }
+    // Сначала обновим state, чтобы обработчик SSE card.created не добавил дубликат
+    const destArr = state.cards.get(destListId) || [];
+    if(!destArr.some(x => x.id === created.id)){
+      destArr.push(created); state.cards.set(destListId, destArr);
+    }
+    const cardsEl = document.querySelector(`.cards[data-list-id="${destListId}"]`);
+    if(cardsEl && !cardsEl.querySelector(`.card[data-id='${created.id}']`)){
+      cardsEl.appendChild(renderCard(created));
+    }
   } catch(err){ alert('Не удалось дублировать карточку: ' + err.message); }
 }
 
@@ -894,15 +908,33 @@ async function duplicateList(listId){
   const l = state.lists.find(x => x.id === listId); if(!l) return;
   const title = (l.title || '') + ' (копия)';
   try {
+    state.duplicationInProgress = true;
     const nl = await api.createList(state.currentBoardId, title);
     if(l.color){ try { await api.updateList(nl.id, { color: l.color }); nl.color = l.color; } catch{} }
-    // Add to state/UI
-    state.lists.push(nl); state.cards.set(nl.id, []);
-    const col = buildListColumn(nl); els.lists.appendChild(col);
+    // Если список уже добавлен через SSE, повторно не добавляем
+    let targetList = state.lists.find(x => x.id === nl.id);
+    if(!targetList){
+      targetList = nl;
+      state.lists.push(nl);
+      if(!state.cards.has(nl.id)) state.cards.set(nl.id, []);
+      if(!els.lists.querySelector(`section.list[data-id='${nl.id}']`)){
+        const col = buildListColumn(nl); els.lists.appendChild(col);
+      }
+    } else {
+      // Убедимся, что колонка присутствует
+      if(!els.lists.querySelector(`section.list[data-id='${nl.id}']`)){
+        const col = buildListColumn(targetList); els.lists.appendChild(col);
+      }
+      if(l.color){
+        const col = els.lists.querySelector(`section.list[data-id='${nl.id}']`);
+        if(col){ if(targetList.color) col.style.setProperty('--clr', targetList.color); else col.style.removeProperty('--clr'); }
+      }
+    }
     // Copy cards sequentially
     const cards = state.cards.get(listId) || [];
-    for(const c of cards){ try { await duplicateCard(c.id, listId); } catch{} }
+    for(const c of cards){ try { await duplicateCard(c.id, listId, nl.id); } catch{} }
   } catch(err){ alert('Не удалось дублировать список: ' + err.message); }
+  finally { state.duplicationInProgress = false; }
 }
 
 // Prompt-driven card move to another list within current board (to end)
@@ -1082,9 +1114,8 @@ function onEvent(ev){
     }
     case 'list.updated': {
       const id = ev.payload?.id; if(!id) return;
-      // Запросим актуальные данные списка (минимально)
-      // Для простоты обновим всю доску, если список не найден
-      renderBoard(state.currentBoardId);
+      // Во время дублирования избегаем полной перерисовки, чтобы не потерять локальные вставки
+      if(!state.duplicationInProgress){ renderBoard(state.currentBoardId); }
       break;
     }
     case 'list.moved': {
@@ -1134,11 +1165,10 @@ function onEvent(ev){
       break;
     }
     case 'card.updated':
-  case 'card.assignee_changed':
+    case 'card.assignee_changed':
     case 'card.moved':
     case 'comment.created': {
-      // Для простоты: переотрисовать текущую доску, чтобы синхронизировать позиции и новые данные
-      renderBoard(state.currentBoardId);
+      if(!state.duplicationInProgress){ renderBoard(state.currentBoardId); }
       break;
     }
     case 'board.updated': {
