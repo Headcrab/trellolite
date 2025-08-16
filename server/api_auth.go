@@ -107,6 +107,8 @@ func (a *api) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.setSessionCookie(w, token, exp)
+	// Ensure sample content for first-time users
+	go a.ensureSampleContent(context.Background(), u.ID, r)
 	writeJSON(w, 200, map[string]any{"ok": true, "user": u})
 }
 
@@ -263,6 +265,8 @@ func (a *api) handleGithubCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.setSessionCookie(w, tok, exp)
+	// Ensure sample content for first-time users
+	go a.ensureSampleContent(context.Background(), u.ID, r)
 	// Redirect to home after successful OAuth login
 	http.Redirect(w, r, "/", http.StatusFound)
 }
@@ -372,7 +376,69 @@ func (a *api) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.setSessionCookie(w, tok, exp)
+	// Ensure sample content for first-time users
+	go a.ensureSampleContent(context.Background(), u.ID, r)
 	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+// ensureSampleContent creates a sample board with lists and cards for users with no boards yet.
+// It is safe to call multiple times; it only acts when the user has zero own boards.
+func (a *api) ensureSampleContent(ctx context.Context, userID int64, r *http.Request) {
+	// Quick check: if user already has boards, skip
+	boards, err := a.store.ListBoards(ctx, userID, "mine")
+	if err != nil || len(boards) > 0 {
+		return
+	}
+	// Choose language: from user's Accept-Language; default en
+	lang := "en"
+	if r != nil {
+		al := strings.ToLower(r.Header.Get("Accept-Language"))
+		if strings.HasPrefix(al, "ru") {
+			lang = "ru"
+		}
+	}
+	// Localized strings
+	type sample struct {
+		board string
+		lists []string
+		cards [][]string // per list
+	}
+	sm := sample{
+		board: "My first board",
+		lists: []string{"Ideas", "In progress", "Done"},
+		cards: [][]string{
+			{"Sample task", "Plan the week"},
+			{"Make a demo"},
+			{"Welcome to Trellolite!"},
+		},
+	}
+	if lang == "ru" {
+		sm = sample{
+			board: "Моя первая доска",
+			lists: []string{"Идеи", "В работе", "Готово"},
+			cards: [][]string{
+				{"Пример задачи", "План на неделю"},
+				{"Сделать демо"},
+				{"Добро пожаловать в Trellolite!"},
+			},
+		}
+	}
+	// Create the board and content
+	b, err := a.store.CreateBoard(ctx, userID, sm.board)
+	if err != nil {
+		return
+	}
+	for i, lt := range sm.lists {
+		l, err := a.store.CreateList(ctx, b.ID, lt)
+		if err != nil {
+			continue
+		}
+		if i < len(sm.cards) {
+			for _, title := range sm.cards[i] {
+				_, _ = a.store.CreateCard(ctx, l.ID, title, "", false)
+			}
+		}
+	}
 }
 
 type googleUser struct {
