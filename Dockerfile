@@ -4,13 +4,13 @@ WORKDIR /src
 # Copy module manifests first to leverage cache
 COPY go.mod go.sum ./
 # Use BuildKit caches for modules and build cache
-RUN --mount=type=cache,target=/go/pkg/mod \
-	--mount=type=cache,target=/root/.cache/go-build \
+RUN --mount=type=cache,id=gomodcache,target=/go/pkg/mod \
+	--mount=type=cache,id=gobuildcache,target=/root/.cache/go-build \
 	go mod download
 COPY server ./server
 # Build the binary with caches and smaller binary size
-RUN --mount=type=cache,target=/go/pkg/mod \
-	--mount=type=cache,target=/root/.cache/go-build \
+RUN --mount=type=cache,id=gomodcache,target=/go/pkg/mod \
+	--mount=type=cache,id=gobuildcache,target=/root/.cache/go-build \
 	CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/app ./server
 
 FROM gcr.io/distroless/static:nonroot@sha256:cdf4daaf154e3e27cfffc799c16f343a384228f38646928a1513d925f473cb46
