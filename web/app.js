@@ -1288,12 +1288,7 @@ function renderCard(c){
   let assigneeHTML = '';
   if(c.assignee_id && state.currentBoardId && state.boardMembers.has(state.currentBoardId)){
     const u = (state.boardMembers.get(state.currentBoardId)||[]).find(x => x.id === c.assignee_id);
-    if(u){
-      const display = (u.name||u.email||('#'+u.id));
-      const initials = display.trim().slice(0,1).toUpperCase();
-      const title = (typeof t==='function' ? t('app.dialogs.card.assignee_title', {name: display}) : ('Исполнитель: '+display));
-      assigneeHTML = `<span class="assignee-wrap" title="${escapeHTML(title)}"><span class="assignee" aria-hidden="true">${escapeHTML(initials)}</span><span class="assignee-name">${escapeHTML(display)}</span></span>`;
-    }
+    if(u){ const display = (u.name||u.email||('#'+u.id)); const initials = display.trim().slice(0,1).toUpperCase(); const title = (typeof t==='function' ? t('app.dialogs.card.assignee_title', {name: display}) : ('Исполнитель: '+display)); assigneeHTML = `<span class="assignee" title="${escapeHTML(title)}">${escapeHTML(initials)}</span>`; }
   }
   const cardColorLbl = (typeof t==='function'? t('app.ctx.color') : 'Цвет…');
   const shareLbl = (typeof t==='function'? t('app.ctx.share') : 'Поделиться');
