@@ -169,7 +169,8 @@
       "footer": "Public page. Data is available only via the link.",
       "not_found": "Link unavailable or removed.",
       "link_copied": "Link copied",
-      "copy_failed": "Failed to copy link: {msg}"
+  "copy_failed": "Failed to copy link: {msg}",
+  "no_comments": "No comments"
     }
   },
   "profile": {

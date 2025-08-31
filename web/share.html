@@ -28,6 +28,10 @@
   #btnTheme svg{width:18px;height:18px;opacity:.85}
     .error{padding:12px 14px;border:1px solid #ef4444;background:rgba(239,68,68,.08);color:#ef9a9a;border-radius:8px}
     .color{display:inline-flex;gap:8px;align-items:center}
+  .comments{margin-top:14px;border-top:1px dashed rgba(255,255,255,.12);padding-top:12px}
+  .comments h3{margin:0 0 8px 0;font-size:14px;color:var(--muted)}
+  .comment{padding:8px 10px;border:1px solid rgba(255,255,255,.08);border-radius:8px;margin:8px 0;background:rgba(255,255,255,.03)}
+  .comment .meta{margin:0 0 4px 0;font-size:11px}
   </style>
 </head>
 <body>
@@ -70,24 +74,77 @@
   (function(){ const btn=document.getElementById('btnTheme'); if(btn){ btn.addEventListener('click', ()=>{ const cur=getPreferredTheme(); const next = cur==='auto'?'light':cur==='light'?'dark':'auto'; localStorage.setItem('theme', next); setTheme(next); }); setTheme(getPreferredTheme()); btn.title = tt('app.theme.toggle','Тема'); btn.setAttribute('aria-label', btn.title); } })();
   async function fetchJSON(url){ const res = await fetch(url); if(!res.ok){ throw new Error(await res.text()||res.statusText); } try{ return await res.json(); }catch{ return null; } }
   function escapeHTML(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
-  function renderMd(s){ return '<p>'+escapeHTML(s||'').replace(/\n/g,'<br>')+'</p>'; }
+  function renderMd(s){
+    // simple but nicer Markdown: headings, lists, links, code, paragraphs
+    const esc = (t)=> (t||'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    const inline = (t)=>{
+      let x = t||'';
+      const slots=[]; // code spans
+      x = x.replace(/`([^`]+)`/g,(m,g)=>{ slots.push(esc(g)); return `\u0001C${slots.length-1}\u0002`; });
+      x = esc(x);
+      x = x.replace(/\*\*([^*]+)\*\*/g,'<strong>$1<\/strong>');
+      x = x.replace(/(^|[^*])\*([^*]+)\*(?=[^*]|$)/g,'$1<em>$2<\/em>');
+      x = x.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1<\/a>');
+      x = x.replace(/\u0001C(\d+)\u0002/g,(m,n)=>`<code>${slots[+n]||''}<\/code>`);
+      return x;
+    };
+    const lines = (s||'').replace(/\r\n?/g,'\n').split('\n');
+    const out=[]; let i=0, inCode=false, code=[]; let list=null, buf=[];
+    const flushP=()=>{ if(buf.length){ out.push('<p>'+inline(buf.join(' '))+'<\/p>'); buf=[]; } };
+    const flushList=()=>{ if(list){ out.push('<'+list.tag+'>'+list.items.join('')+'<\/'+list.tag+'>'); list=null; } };
+    while(i<lines.length){
+      const ln=lines[i];
+      const fence=/^\s*```\s*([\w-]*)\s*$/.exec(ln);
+      if(fence){ if(!inCode){ inCode=true; code=[]; i++; continue; } out.push('<pre><code>'+esc(code.join('\n'))+'<\/code><\/pre>'); inCode=false; i++; continue; }
+      if(inCode){ code.push(ln); i++; continue; }
+      if(/^\s*$/.test(ln)){ flushP(); flushList(); i++; continue; }
+      const h=/^\s{0,3}(#{1,6})\s+(.+)$/.exec(ln); if(h){ flushP(); flushList(); const lvl=h[1].length; out.push('<h'+lvl+'>'+inline(h[2])+'<\/h'+lvl+'>'); i++; continue; }
+      let m;
+      if((m=/^\s*[-*]\s+(.+)$/.exec(ln))){ if(!list||list.tag!=='ul'){ flushP(); flushList(); list={tag:'ul',items:[]}; } list.items.push('<li>'+inline(m[1])+'<\/li>'); i++; continue; }
+      if((m=/^\s*\d+[.)]\s+(.+)$/.exec(ln))){ if(!list||list.tag!=='ol'){ flushP(); flushList(); list={tag:'ol',items:[]}; } list.items.push('<li>'+inline(m[1])+'<\/li>'); i++; continue; }
+      buf.push(ln.trim()); i++;
+    }
+    flushP(); flushList();
+    return out.join('\n');
+  }
   async function main(){
     const token = location.pathname.split('/').pop();
     const view = document.getElementById('view');
     view.innerHTML = '<div class="muted">'+tt('profile.loading','Загрузка…')+'</div>';
     try{
-      const c = await fetchJSON('/api/public/share/'+encodeURIComponent(token));
+  const payload = await fetchJSON('/api/public/share/'+encodeURIComponent(token));
+  const c = payload && payload.card ? payload.card : payload; // backward compat if server returns bare card
+  const comments = payload && payload.comments ? payload.comments : [];
       try{ if(window.i18n){ i18n.apply(); } }catch{}
       try{ document.title = tt('app.share.page_title','Карточка — общий доступ'); document.getElementById('footerNote').textContent = tt('app.share.footer','Публичная страница. Данные доступны только по ссылке.'); }catch{}
       const color = (c && c.color) ? c.color : '';
       const due = c && c.due_at ? new Date(c.due_at).toLocaleString() : '';
-      view.innerHTML = '<article class="card"'+(color?(' style="--clr:'+color+'; border-left:6px solid '+color+'"'):'')+'>'+
+      const descHtml = (c.description_is_md ? renderMd(c.description||'') : ('<p>'+escapeHTML(c.description||'').replace(/\n/g,'<br>')+'</p>'));
+      let html = '<article class="card"'+(color?(' style="--clr:'+color+'; border-left:6px solid '+color+'"'):'')+'>'+
         '<h2 class="title">'+escapeHTML(c.title||'')+'</h2>'+
-        (c.description?('<div class="desc">'+renderMd(c.description)+'</div>'):'')+
+        (c.description?('<div class="desc">'+descHtml+'</div>'):'')+
         '<div class="meta">'+
           (due?('<span class="badge"><span class="dot" style="background:'+color+'"></span>'+escapeHTML(due)+'</span>'):'')+
         '</div>'+
       '</article>';
+      // comments
+      if(Array.isArray(comments)){
+        const items = comments.map(cm=>{
+          const ts = cm.created_at ? new Date(cm.created_at).toLocaleString() : '';
+          // support simple md in comments too
+          const body = renderMd(cm.body||'');
+          return '<div class="comment">'+
+                   (ts?('<div class="meta muted">'+escapeHTML(ts)+'</div>'):'')+
+                   '<div class="body">'+body+'</div>'+
+                 '</div>';
+        }).join('');
+        const title = tt('app.dialogs.card.comments','Комментарии');
+        html += '<section class="comments">'+
+                  '<h3>'+escapeHTML(title)+'</h3>'+
+                  (items||('<div class="muted">'+escapeHTML(tt('app.share.no_comments','Нет комментариев'))+'</div>'))+
+                '</section>';
+      }
+      view.innerHTML = html;
     }catch(err){ view.innerHTML = '<div class="error">'+tt('app.share.not_found','Ссылка недоступна или удалена.')+'</div>'; }
   }
   main();

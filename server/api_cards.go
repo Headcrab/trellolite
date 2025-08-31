@@ -293,5 +293,15 @@ func (a *api) handlePublicShareData(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "internal error")
 		return
 	}
-	writeJSON(w, 200, c)
+	// Include comments for this card in the public payload
+	comments, err2 := a.store.CommentsByCard(r.Context(), c.ID)
+	if err2 != nil {
+		// Log but don't fail the whole request
+		a.log.Error("share comments fetch", "err", err2)
+		comments = nil
+	}
+	writeJSON(w, 200, map[string]any{
+		"card":     c,
+		"comments": comments,
+	})
 }

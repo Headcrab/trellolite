@@ -1265,8 +1265,10 @@ function renderLists(){
 function isCardCollapsed(id){
   try{
     const raw = localStorage.getItem('collapsedCards') || '{}';
-    const map = JSON.parse(raw); return !!map[id];
-  }catch{ return false; }
+    const map = JSON.parse(raw);
+    // По умолчанию карточки свернуты, если состояние ещё не сохранено
+    return Object.prototype.hasOwnProperty.call(map, String(id)) ? !!map[id] : true;
+  }catch{ return true; }
 }
 
 function setCardCollapsed(id, val){
@@ -1291,7 +1293,7 @@ function renderCard(c){
   const shareLbl = (typeof t==='function'? t('app.ctx.share') : 'Поделиться');
   const collapsed = isCardCollapsed(c.id);
   const toggleTitle = (typeof t==='function'? t('app.card.toggle_children') : 'Скрыть/показать вложенные');
-  el.innerHTML = `<button class="btn icon btn-collapse" title="${toggleTitle}" aria-label="${toggleTitle}" aria-expanded="${collapsed?'false':'true'}">${collapsed?'▸':'▾'}</button><span class="ico"><svg aria-hidden="true"><use href="#i-card"></use></svg></span><div class="title">${escapeHTML(c.title)}</div><div class="spacer"></div>${assigneeHTML}<button class="btn icon btn-share" title="${shareLbl}" aria-label="${shareLbl}"><svg aria-hidden="true"><use href="#i-link"></use></svg></button><button class="btn icon btn-color" title="${cardColorLbl}" aria-label="${cardColorLbl}"><svg aria-hidden="true"><use href="#i-palette"></use></svg></button><div class="children" data-parent-id="${c.id}"></div>`;
+  el.innerHTML = `<button class="btn icon btn-collapse" title="${toggleTitle}" aria-label="${toggleTitle}" aria-expanded="${collapsed?'false':'true'}">${collapsed?'▸':'▾'}</button><span class="ico"><svg aria-hidden="true"><use href="#i-card" xlink:href="#i-card"></use></svg></span><div class="title">${escapeHTML(c.title)}</div><div class="spacer"></div>${assigneeHTML}<button class="btn icon btn-share" title="${shareLbl}" aria-label="${shareLbl}"><svg aria-hidden="true"><use href="#i-link" xlink:href="#i-link"></use></svg></button><button class="btn icon btn-color" title="${cardColorLbl}" aria-label="${cardColorLbl}"><svg aria-hidden="true"><use href="#i-palette" xlink:href="#i-palette"></use></svg></button><div class="children" data-parent-id="${c.id}"></div>`;
   el.addEventListener('dblclick', () => openCard(c));
   if(c.color){ el.style.setProperty('--clr', c.color); }
   const colorBtn = el.querySelector('.btn-color');
