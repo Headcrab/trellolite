@@ -118,12 +118,17 @@
       try{ if(window.i18n){ i18n.apply(); } }catch{}
       try{ document.title = tt('app.share.page_title','Карточка — общий доступ'); document.getElementById('footerNote').textContent = tt('app.share.footer','Публичная страница. Данные доступны только по ссылке.'); }catch{}
       const color = (c && c.color) ? c.color : '';
-      const due = c && c.due_at ? new Date(c.due_at).toLocaleString() : '';
+  const due = c && c.due_at ? new Date(c.due_at).toLocaleString() : '';
+  const assignee = c && c.assignee ? String(c.assignee) : '';
       const descHtml = (c.description_is_md ? renderMd(c.description||'') : ('<p>'+escapeHTML(c.description||'').replace(/\n/g,'<br>')+'</p>'));
       let html = '<article class="card"'+(color?(' style="--clr:'+color+'; border-left:6px solid '+color+'"'):'')+'>'+
         '<h2 class="title">'+escapeHTML(c.title||'')+'</h2>'+
         (c.description?('<div class="desc">'+descHtml+'</div>'):'')+
         '<div class="meta">'+
+          (assignee?('<span class="badge" title="'+escapeHTML(tt('app.dialogs.card.assignee','Исполнитель'))+'">'+
+                       '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.42 0-8 2.24-8 5v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-2.76-3.58-5-8-5Z"/></svg>'+
+                       '<span>'+escapeHTML(assignee)+'</span>'+
+                     '</span>'):'')+
           (due?('<span class="badge"><span class="dot" style="background:'+color+'"></span>'+escapeHTML(due)+'</span>'):'')+
         '</div>'+
       '</article>';

@@ -1008,9 +1008,13 @@ func (s *Store) GetOrCreateCardShare(ctx context.Context, cardID int64) (string,
 func (s *Store) CardByShareToken(ctx context.Context, token string) (Card, error) {
 	var c Card
 	err := s.db.QueryRowContext(ctx, `
-	select c.id, c.list_id, c.title, c.description, coalesce(c.color,''), c.pos, c.due_at, c.description_is_md, c.assignee_user_id, c.parent_card_id
-	from card_shares cs join cards c on c.id = cs.card_id where cs.token=$1`, token).
-		Scan(&c.ID, &c.ListID, &c.Title, &c.Description, &c.Color, &c.Pos, &c.DueAt, &c.DescriptionIsMD, &c.AssigneeUserID, &c.ParentID)
+	select c.id, c.list_id, c.title, c.description, coalesce(c.color,''), c.pos, c.due_at, c.description_is_md, c.assignee_user_id, c.parent_card_id,
+		   coalesce(u.name, u.email, '') as assignee
+	from card_shares cs
+	join cards c on c.id = cs.card_id
+	left join users u on u.id = c.assignee_user_id
+	where cs.token=$1`, token).
+		Scan(&c.ID, &c.ListID, &c.Title, &c.Description, &c.Color, &c.Pos, &c.DueAt, &c.DescriptionIsMD, &c.AssigneeUserID, &c.ParentID, &c.Assignee)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Card{}, ErrNotFound
