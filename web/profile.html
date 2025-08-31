@@ -41,6 +41,27 @@
         <label data-t="profile.role">Роль</label>
         <div id="pfRole" class="muted"></div>
       </div>
+      <div class="field">
+        <label data-t="profile.card_title_appearance">Вид заголовка карточки</label>
+        <div class="row">
+          <select id="pfCardTitleSize" style="max-width:160px">
+            <option value="11px">11 px</option>
+            <option value="12px">12 px</option>
+            <option value="13px">13 px</option>
+            <option value="14px">14 px</option>
+            <option value="15px">15 px</option>
+          </select>
+          <select id="pfCardTitleFont" style="max-width:260px">
+            <option value="inherit">Системный</option>
+            <option value="'Inter', system-ui, Segoe UI, Roboto, Arial">Inter/Системный</option>
+            <option value="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif">Segoe UI</option>
+            <option value="Roboto, Arial, sans-serif">Roboto</option>
+            <option value="Arial, sans-serif">Arial</option>
+          </select>
+          <button id="pfApplyTitleStyle" type="button" class="btn">Применить</button>
+        </div>
+        <div class="muted" data-t="profile.card_title_appearance_hint">Размер и шрифт отображаются только у вас (локальная настройка).</div>
+      </div>
       <div id="formMsg" class="status"></div>
     </form>
   </main>
@@ -70,6 +91,15 @@
     function getPreferredTheme(){ const saved = localStorage.getItem('theme'); return (saved==='light'||saved==='dark'||saved==='auto')?saved:'auto'; }
     function setTheme(mode){ const html=document.documentElement; if(mode==='auto') html.removeAttribute('data-theme'); else html.setAttribute('data-theme',mode); applyThemeIcon(mode); }
     (function init(){ const mode=getPreferredTheme(); setTheme(mode); const b=document.getElementById('btnTheme'); if(b){ b.addEventListener('click',()=>{ const cur=getPreferredTheme(); const next=cur==='auto'?'light':cur==='light'?'dark':'auto'; localStorage.setItem('theme',next); setTheme(next); }); } })();
+    function applyCardTitlePrefs(){
+      try{
+        const size = localStorage.getItem('pref_card_title_size');
+        const font = localStorage.getItem('pref_card_title_font');
+        const root = document.documentElement;
+        if(size) root.style.setProperty('--card-title-size', size);
+        if(font) root.style.setProperty('--card-title-font', font);
+      }catch{}
+    }
     (async function(){
       try{
         const me = await fetchJSON('/api/auth/me');
@@ -83,6 +113,23 @@
         document.getElementById('pfEmail').textContent = u.email || '';
         document.getElementById('pfRole').textContent = (typeof t==='function' ? (u.is_admin ? t('profile.role_admin') : t('profile.role_user')) : (u.is_admin ? 'Администратор' : 'Пользователь'));
         function setBusy(b){ btnSave.disabled=b; btnSave.textContent = b? (typeof t==='function'? t('profile.saving') : 'Сохранение…') : (typeof t==='function'? t('profile.save') : 'Сохранить'); }
+        // Load current prefs into UI
+        const sizeSel = document.getElementById('pfCardTitleSize');
+        const fontSel = document.getElementById('pfCardTitleFont');
+        const applyBtn = document.getElementById('pfApplyTitleStyle');
+        try{
+          const s = localStorage.getItem('pref_card_title_size') || '12px';
+          const f = localStorage.getItem('pref_card_title_font') || 'inherit';
+          sizeSel.value = s; fontSel.value = f; applyCardTitlePrefs();
+        }catch{}
+        applyBtn.addEventListener('click', ()=>{
+          try{
+            localStorage.setItem('pref_card_title_size', sizeSel.value);
+            localStorage.setItem('pref_card_title_font', fontSel.value);
+          }catch{}
+          applyCardTitlePrefs();
+        });
+
         document.getElementById('profileForm').addEventListener('submit', async (e)=>{
           e.preventDefault(); msg.textContent='';
           const name = inpName.value.trim(); if(!name){ msg.textContent=(typeof t==='function'? t('profile.enter_name') : 'Введите имя'); inpName.focus(); return; }

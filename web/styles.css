@@ -136,7 +136,8 @@ ul{list-style:none; padding:0; margin:0}
 .card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px; cursor:grab; box-shadow:0 1px 2px rgba(16,24,40,.04); display:flex; align-items:center; gap:8px; flex-wrap:wrap; width:100%}
 .card .title{
   flex:1; min-width:0;
-  font-size:14px;           /* немного крупнее для читаемости */
+  font-size: var(--card-title-size, 12px);   /* настраиваемый размер (уменьшен по умолчанию) */
+  font-family: var(--card-title-font, inherit);
   font-weight:600;          /* полужирный для контраста */
   display:-webkit-box;      /* мультистрочный обрез */
   line-clamp:2;             /* стандартное свойство */

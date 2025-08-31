@@ -150,6 +150,14 @@ init();
 async function init(){
   // Theme init
   const mode = getPreferredTheme(); setTheme(mode); applyThemeIcon(mode);
+    // Apply local UI prefs (card title font/size)
+    try{
+      const root = document.documentElement;
+      const s = localStorage.getItem('pref_card_title_size');
+      const f = localStorage.getItem('pref_card_title_font');
+      if(s) root.style.setProperty('--card-title-size', s);
+      if(f) root.style.setProperty('--card-title-font', f);
+    }catch{}
   // Sidebar collapsed state init
   try{
     const saved = JSON.parse(localStorage.getItem('sidebarCollapsed')||'');
