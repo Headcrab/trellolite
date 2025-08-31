@@ -1275,7 +1275,8 @@ function setCardCollapsed(id, val){
   try{
     const raw = localStorage.getItem('collapsedCards') || '{}';
     const map = JSON.parse(raw);
-    if(val) map[id] = true; else delete map[id];
+  // Явно сохраняем и true и false, чтобы состояние не терялось при перерисовках
+  map[id] = !!val;
     localStorage.setItem('collapsedCards', JSON.stringify(map));
   }catch{}
 }
@@ -1293,9 +1294,9 @@ function renderCard(c){
   const shareLbl = (typeof t==='function'? t('app.ctx.share') : 'Поделиться');
   const collapsed = isCardCollapsed(c.id);
   const toggleTitle = (typeof t==='function'? t('app.card.toggle_children') : 'Скрыть/показать вложенные');
-  el.innerHTML = `<button class="btn icon btn-collapse" title="${toggleTitle}" aria-label="${toggleTitle}" aria-expanded="${collapsed?'false':'true'}">${collapsed?'▸':'▾'}</button><span class="ico"><svg aria-hidden="true"><use href="#i-card" xlink:href="#i-card"></use></svg></span><div class="title">${escapeHTML(c.title)}</div><div class="spacer"></div>${assigneeHTML}
+  el.innerHTML = `<button class="btn icon btn-collapse" title="${toggleTitle}" aria-label="${toggleTitle}" aria-expanded="${collapsed?'false':'true'}">${collapsed?'▸':'▾'}</button><span class="ico"><svg aria-hidden="true"><use href="#i-card" xlink:href="#i-card"></use></svg></span><div class="title" title="${escapeHTML(c.title)}">${escapeHTML(c.title)}</div><div class="spacer"></div>${assigneeHTML}
   <button class="btn icon btn-share" title="${shareLbl}" aria-label="${shareLbl}">
-    <svg aria-hidden="true">
+    <svg aria-hidden="true" fill="currentColor">
       <path d="M10.59 13.41a1 1 0 0 0 1.41 1.41l4.95-4.95a3 3 0 1 0-4.24-4.24l-1.41 1.41a1 1 0 0 0 1.41 1.41l1.41-1.41a1 1 0 1 1 1.41 1.41l-4.95 4.95ZM13.41 10.59a1 1 0 0 0-1.41-1.41L7.05 14.13a3 3 0 1 0 4.24 4.24l1.41-1.41a1 1 0 0 0-1.41-1.41l-1.41 1.41a1 1 0 1 1-1.41-1.41l4.95-4.95Z"/>
     </svg>
   </button>

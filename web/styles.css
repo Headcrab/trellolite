@@ -137,10 +137,13 @@ ul{list-style:none; padding:0; margin:0}
 .card .title{
   flex:1; min-width:0;
   font-size:13px;           /* чуть меньше */
-  white-space:nowrap;       /* не переносить слова */
-  overflow:hidden;          /* обрезать лишнее */
-  text-overflow:ellipsis;   /* троеточие при нехватке места */
+  display:-webkit-box;      /* мультистрочный обрез */
+  line-clamp:2;             /* стандартное свойство */
+  -webkit-line-clamp:2;     /* максимум две строки */
+  -webkit-box-orient:vertical;
+  overflow:hidden;          /* скрыть лишнее */
 }
+.card .btn-collapse{ min-width:28px; }
 .card .btn-collapse{ border-radius:999px }
 .card .children{ display:flex; flex-direction:column; gap:8px; flex-basis:100%; margin-top:8px; padding-left:14px; border-left:1px dashed var(--border) }
 .card .children .card{ width:100%; }
