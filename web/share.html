@@ -131,10 +131,11 @@
       if(Array.isArray(comments)){
         const items = comments.map(cm=>{
           const ts = cm.created_at ? new Date(cm.created_at).toLocaleString() : '';
+          const author = cm.author || '';
           // support simple md in comments too
           const body = renderMd(cm.body||'');
           return '<div class="comment">'+
-                   (ts?('<div class="meta muted">'+escapeHTML(ts)+'</div>'):'')+
+                   ((ts||author)?('<div class="meta muted">'+escapeHTML([ts, author].filter(Boolean).join(' · '))+'</div>'):'')+
                    '<div class="body">'+body+'</div>'+
                  '</div>';
         }).join('');

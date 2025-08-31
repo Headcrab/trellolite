@@ -43,6 +43,8 @@ type Comment struct {
 	CardID    int64     `json:"card_id"`
 	Body      string    `json:"body"`
 	CreatedAt time.Time `json:"created_at"`
+	UserID    *int64    `json:"user_id,omitempty"`
+	Author    string    `json:"author,omitempty"`
 }
 
 // Below are preliminary models for upcoming auth/admin features.

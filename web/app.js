@@ -1293,7 +1293,13 @@ function renderCard(c){
   const shareLbl = (typeof t==='function'? t('app.ctx.share') : 'Поделиться');
   const collapsed = isCardCollapsed(c.id);
   const toggleTitle = (typeof t==='function'? t('app.card.toggle_children') : 'Скрыть/показать вложенные');
-  el.innerHTML = `<button class="btn icon btn-collapse" title="${toggleTitle}" aria-label="${toggleTitle}" aria-expanded="${collapsed?'false':'true'}">${collapsed?'▸':'▾'}</button><span class="ico"><svg aria-hidden="true"><use href="#i-card" xlink:href="#i-card"></use></svg></span><div class="title">${escapeHTML(c.title)}</div><div class="spacer"></div>${assigneeHTML}<button class="btn icon btn-share" title="${shareLbl}" aria-label="${shareLbl}"><svg aria-hidden="true"><use href="#i-link" xlink:href="#i-link"></use></svg></button><button class="btn icon btn-color" title="${cardColorLbl}" aria-label="${cardColorLbl}"><svg aria-hidden="true"><use href="#i-palette" xlink:href="#i-palette"></use></svg></button><div class="children" data-parent-id="${c.id}"></div>`;
+  el.innerHTML = `<button class="btn icon btn-collapse" title="${toggleTitle}" aria-label="${toggleTitle}" aria-expanded="${collapsed?'false':'true'}">${collapsed?'▸':'▾'}</button><span class="ico"><svg aria-hidden="true"><use href="#i-card" xlink:href="#i-card"></use></svg></span><div class="title">${escapeHTML(c.title)}</div><div class="spacer"></div>${assigneeHTML}
+  <button class="btn icon btn-share" title="${shareLbl}" aria-label="${shareLbl}">
+    <svg aria-hidden="true">
+      <path d="M10.59 13.41a1 1 0 0 0 1.41 1.41l4.95-4.95a3 3 0 1 0-4.24-4.24l-1.41 1.41a1 1 0 0 0 1.41 1.41l1.41-1.41a1 1 0 1 1 1.41 1.41l-4.95 4.95ZM13.41 10.59a1 1 0 0 0-1.41-1.41L7.05 14.13a3 3 0 1 0 4.24 4.24l1.41-1.41a1 1 0 0 0-1.41-1.41l-1.41 1.41a1 1 0 1 1-1.41-1.41l4.95-4.95Z"/>
+    </svg>
+  </button>
+  <button class="btn icon btn-color" title="${cardColorLbl}" aria-label="${cardColorLbl}"><svg aria-hidden="true"><use href="#i-palette" xlink:href="#i-palette"></use></svg></button><div class="children" data-parent-id="${c.id}"></div>`;
   el.addEventListener('dblclick', () => openCard(c));
   if(c.color){ el.style.setProperty('--clr', c.color); }
   const colorBtn = el.querySelector('.btn-color');
@@ -1513,8 +1519,9 @@ async function loadComments(cardId){
   els.cvComments.innerHTML = '';
   for(const cm of comments){
     const li = document.createElement('li');
-    const when = new Date(cm.created_at).toLocaleString();
-    li.textContent = `${when}: ${cm.body}`;
+  const when = new Date(cm.created_at).toLocaleString();
+  const author = cm.author || '';
+  li.innerHTML = `<span class="muted">${escapeHTML(when)}${author?(' · '+escapeHTML(author)) : ''}</span>: ${escapeHTML(cm.body||'')}`;
     els.cvComments.appendChild(li);
   }
 }

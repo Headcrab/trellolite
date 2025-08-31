@@ -643,7 +643,9 @@ func (s *Store) BoardAndListByCard(ctx context.Context, cardID int64) (int64, in
 
 func (s *Store) CommentsByCard(ctx context.Context, cardID int64) ([]Comment, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`select id, card_id, body, created_at from comments where card_id=$1 order by id`, cardID)
+		`select c.id, c.card_id, c.body, c.created_at, c.user_id, coalesce(u.name, u.email, '') as author
+		 from comments c left join users u on u.id = c.user_id
+		 where c.card_id=$1 order by c.id`, cardID)
 	if err != nil {
 		return nil, err
 	}
@@ -651,7 +653,7 @@ func (s *Store) CommentsByCard(ctx context.Context, cardID int64) ([]Comment, er
 	var out []Comment
 	for rows.Next() {
 		var c Comment
-		if err := rows.Scan(&c.ID, &c.CardID, &c.Body, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.CardID, &c.Body, &c.CreatedAt, &c.UserID, &c.Author); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -659,12 +661,16 @@ func (s *Store) CommentsByCard(ctx context.Context, cardID int64) ([]Comment, er
 	return out, rows.Err()
 }
 
-func (s *Store) AddComment(ctx context.Context, cardID int64, body string) (Comment, error) {
+func (s *Store) AddComment(ctx context.Context, cardID int64, body string, userID *int64) (Comment, error) {
 	var c Comment
 	err := s.db.QueryRowContext(ctx,
-		`insert into comments(card_id, body) values($1, $2) returning id, card_id, body, created_at`,
-		cardID, body,
-	).Scan(&c.ID, &c.CardID, &c.Body, &c.CreatedAt)
+		`insert into comments(card_id, body, user_id) values($1, $2, $3) returning id, card_id, body, created_at, user_id`,
+		cardID, body, userID,
+	).Scan(&c.ID, &c.CardID, &c.Body, &c.CreatedAt, &c.UserID)
+	if err == nil && c.UserID != nil {
+		// fetch author display
+		_ = s.db.QueryRowContext(ctx, `select coalesce(name, email, '') from users where id=$1`, *c.UserID).Scan(&c.Author)
+	}
 	return c, err
 }
 

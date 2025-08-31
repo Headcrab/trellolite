@@ -8,6 +8,11 @@ func (a *api) handleAddComment(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "bad id")
 		return
 	}
+	me, errU := a.currentUser(r)
+	if errU != nil {
+		writeError(w, 401, "unauthorized")
+		return
+	}
 	var req struct {
 		Body string `json:"body"`
 	}
@@ -15,7 +20,16 @@ func (a *api) handleAddComment(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid payload")
 		return
 	}
-	c, err := a.store.AddComment(r.Context(), id, req.Body)
+	// Verify access to the card via board membership (reuse helper)
+	if ok, errAcc := a.store.CanAccessCard(r.Context(), me.ID, id); errAcc != nil || !ok {
+		if errAcc != nil {
+			a.log.Error("add comment access", "err", errAcc)
+		}
+		writeError(w, 403, "forbidden")
+		return
+	}
+	uid := me.ID
+	c, err := a.store.AddComment(r.Context(), id, req.Body, &uid)
 	if err != nil {
 		a.log.Error("add comment", "err", err)
 		writeError(w, 500, "internal error")
