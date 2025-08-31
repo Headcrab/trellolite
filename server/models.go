@@ -27,6 +27,7 @@ type List struct {
 type Card struct {
 	ID              int64      `json:"id"`
 	ListID          int64      `json:"list_id"`
+	ParentID        *int64     `json:"parent_id,omitempty"`
 	Title           string     `json:"title"`
 	Description     string     `json:"description"`
 	DescriptionIsMD bool       `json:"description_is_md"`

@@ -55,6 +55,14 @@ func (a *api) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/cards/{id}/comments", a.requireAuth(a.handleCommentsByCard))
 	mux.HandleFunc("POST /api/cards/{id}/comments", a.requireAuth(a.handleAddComment))
 
+	// Share links
+	mux.HandleFunc("POST /api/cards/{id}/share", a.requireAuth(a.handleCreateOrGetShare))
+	mux.HandleFunc("GET /api/cards/{id}/share", a.requireAuth(a.handleCreateOrGetShare))
+
+	// Public: view shared card by token
+	mux.HandleFunc("GET /share/{token}", a.handlePublicSharePage)
+	mux.HandleFunc("GET /api/public/share/{token}", a.handlePublicShareData)
+
 	// Groups and board visibility
 	mux.HandleFunc("POST /api/groups", a.requireAuth(a.handleCreateGroupSelf))
 	mux.HandleFunc("GET /api/my/groups", a.requireAuth(a.handleMyGroups))

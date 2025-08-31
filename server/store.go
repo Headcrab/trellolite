@@ -345,7 +345,7 @@ func (s *Store) DeleteList(ctx context.Context, id int64) error {
 
 func (s *Store) CardsByList(ctx context.Context, listID int64) ([]Card, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`select id, list_id, title, description, coalesce(color,''), pos, due_at, assignee_user_id, created_at, coalesce(description_is_md,false)
+		`select id, list_id, parent_card_id, title, description, coalesce(color,''), pos, due_at, assignee_user_id, created_at, coalesce(description_is_md,false)
 	 from cards where list_id=$1 order by pos, id`, listID)
 	if err != nil {
 		return nil, err
@@ -354,7 +354,7 @@ func (s *Store) CardsByList(ctx context.Context, listID int64) ([]Card, error) {
 	var out []Card
 	for rows.Next() {
 		var c Card
-		if err := rows.Scan(&c.ID, &c.ListID, &c.Title, &c.Description, &c.Color, &c.Pos, &c.DueAt, &c.AssigneeUserID, &c.CreatedAt, &c.DescriptionIsMD); err != nil {
+		if err := rows.Scan(&c.ID, &c.ListID, &c.ParentID, &c.Title, &c.Description, &c.Color, &c.Pos, &c.DueAt, &c.AssigneeUserID, &c.CreatedAt, &c.DescriptionIsMD); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -368,9 +368,9 @@ func (s *Store) CreateCard(ctx context.Context, listID int64, title, description
 	var c Card
 	err := s.db.QueryRowContext(ctx,
 		`insert into cards(list_id, title, description, pos, description_is_md) values($1,$2,$3,$4,$5)
-	 returning id, list_id, title, description, coalesce(color,''), pos, due_at, assignee_user_id, created_at, coalesce(description_is_md,false)`,
+	  returning id, list_id, parent_card_id, title, description, coalesce(color,''), pos, due_at, assignee_user_id, created_at, coalesce(description_is_md,false)`,
 		listID, title, description, next, isMD).
-		Scan(&c.ID, &c.ListID, &c.Title, &c.Description, &c.Color, &c.Pos, &c.DueAt, &c.AssigneeUserID, &c.CreatedAt, &c.DescriptionIsMD)
+		Scan(&c.ID, &c.ListID, &c.ParentID, &c.Title, &c.Description, &c.Color, &c.Pos, &c.DueAt, &c.AssigneeUserID, &c.CreatedAt, &c.DescriptionIsMD)
 	return c, err
 }
 
@@ -915,7 +915,7 @@ func (s *Store) DeleteUser(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *Store) UpdateCard(ctx context.Context, id int64, title *string, description *string, pos *int64, dueAt *time.Time, descriptionIsMD *bool, assigneeUserID *int64) error {
+func (s *Store) UpdateCard(ctx context.Context, id int64, title *string, description *string, pos *int64, dueAt *time.Time, descriptionIsMD *bool, assigneeUserID *int64, parentID *int64) error {
 	q := "update cards set "
 	args := []any{}
 	idx := 1
@@ -950,6 +950,11 @@ func (s *Store) UpdateCard(ctx context.Context, id int64, title *string, descrip
 		args = append(args, *assigneeUserID)
 		idx++
 	}
+	if parentID != nil {
+		set = append(set, fmt.Sprintf("parent_card_id=$%d", idx))
+		args = append(args, *parentID)
+		idx++
+	}
 	if len(set) == 0 {
 		return nil
 	}
@@ -957,6 +962,56 @@ func (s *Store) UpdateCard(ctx context.Context, id int64, title *string, descrip
 	args = append(args, id)
 	_, err := s.db.ExecContext(ctx, q, args...)
 	return err
+}
+
+// CanAccessBoard returns true if the user has access to the given board
+// CanAccessCard returns true if the user has access to the board of the card
+func (s *Store) CanAccessCard(ctx context.Context, userID, cardID int64) (bool, error) {
+	bid, _, err := s.BoardAndListByCard(ctx, cardID)
+	if err != nil {
+		return false, err
+	}
+	return s.CanAccessBoard(ctx, userID, bid)
+}
+
+// GetOrCreateCardShare returns existing or creates new public share token for the card
+func (s *Store) GetOrCreateCardShare(ctx context.Context, cardID int64) (string, error) {
+	// try existing
+	var token string
+	err := s.db.QueryRowContext(ctx, `select token from card_shares where card_id=$1`, cardID).Scan(&token)
+	if err == nil && token != "" {
+		return token, nil
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", err
+	}
+	// create new
+	b := make([]byte, 18)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	token = base64.RawURLEncoding.EncodeToString(b)
+	_, err = s.db.ExecContext(ctx, `insert into card_shares(card_id, token) values($1,$2) on conflict (card_id) do nothing`, cardID, token)
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// CardByShareToken returns the card for a public share token
+func (s *Store) CardByShareToken(ctx context.Context, token string) (Card, error) {
+	var c Card
+	err := s.db.QueryRowContext(ctx, `
+	select c.id, c.list_id, c.title, c.description, coalesce(c.color,''), c.pos, c.due_at, c.description_is_md, c.assignee_user_id, c.parent_card_id
+	from card_shares cs join cards c on c.id = cs.card_id where cs.token=$1`, token).
+		Scan(&c.ID, &c.ListID, &c.Title, &c.Description, &c.Color, &c.Pos, &c.DueAt, &c.DescriptionIsMD, &c.AssigneeUserID, &c.ParentID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Card{}, ErrNotFound
+		}
+		return Card{}, err
+	}
+	return c, nil
 }
 
 func (s *Store) MoveCard(ctx context.Context, cardID int64, targetList int64, newIndex int) error {
@@ -977,7 +1032,15 @@ retry:
 	}
 
 	if targetList != listID {
-		if _, err = tx.ExecContext(ctx, `update cards set list_id=$1 where id=$2`, targetList, cardID); err != nil {
+		// Move the card and all its descendants to the target list to preserve hierarchy across lists
+		_, err = tx.ExecContext(ctx, `
+with recursive sub as (
+  select id from cards where id=$1
+  union all
+  select c.id from cards c join sub s on c.parent_card_id = s.id
+)
+update cards set list_id=$2 where id in (select id from sub)`, cardID, targetList)
+		if err != nil {
 			_ = tx.Rollback()
 			return err
 		}
@@ -1373,10 +1436,22 @@ create table if not exists cards(
 	color text,
     pos bigint not null default 1000,
     due_at timestamptz,
+	parent_card_id bigint,
     created_at timestamptz not null default now()
 );
 alter table cards add column if not exists color text;
 alter table cards add column if not exists description_is_md boolean not null default false;
+-- nested cards support
+alter table cards add column if not exists parent_card_id bigint;
+do $$ begin
+	if exists (select 1 from information_schema.tables where table_name='cards') then
+		begin
+			alter table cards
+				add constraint cards_parent_fk foreign key (parent_card_id) references cards(id) on delete cascade;
+		exception when duplicate_object then null; end;
+	end if;
+end $$;
+create index if not exists cards_parent_idx on cards(parent_card_id);
 -- upcoming: assignee for cards
 alter table cards add column if not exists assignee_user_id bigint;
 create index if not exists cards_list_idx on cards(list_id);
@@ -1388,6 +1463,14 @@ create table if not exists comments(
 );
 -- upcoming: author of comment
 alter table comments add column if not exists user_id bigint;
+
+-- Public share links for cards
+create table if not exists card_shares(
+	card_id bigint primary key references cards(id) on delete cascade,
+	token text unique not null,
+	created_at timestamptz not null default now()
+);
+create unique index if not exists card_shares_token_idx on card_shares(token);
 
 -- Users and auth
 create table if not exists users(

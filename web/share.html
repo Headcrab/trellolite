@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Карточка — общий доступ</title>
+  <link rel="icon" type="image/png" href="/web/favicon.png" sizes="32x32">
+  <script src="/web/i18n/i18n.js" defer></script>
+  <style>
+    :root{ --bg: #0b0c0f; --fg: #e5e7eb; --muted:#9aa0a6; --card:#111827; --accent:#3b82f6; }
+    html[data-theme="light"] { --bg: #f6f7fb; --fg:#111827; --muted:#6b7280; --card:#ffffff; --accent:#2563eb; }
+    html,body{height:100%;}
+    body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji","Segoe UI Emoji";}
+    .wrap{max-width:900px;margin:0 auto;padding:24px;}
+    header{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+    header h1{font-size:18px;margin:0;}
+    header .spacer{flex:1;}
+    .card{background:var(--card);border-radius:10px;border:1px solid rgba(255,255,255,.08);padding:16px 18px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+    .title{font-weight:600;font-size:18px;margin:0 0 6px 0}
+    .desc{white-space:pre-wrap}
+    .meta{display:flex;gap:12px;align-items:center;color:var(--muted);font-size:12px;margin:10px 0 0}
+    .badge{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);padding:2px 8px;border-radius:999px}
+    .badge .dot{width:8px;height:8px;border-radius:50%}
+    .muted{color:var(--muted)}
+    .footer{margin-top:20px;color:var(--muted);font-size:12px}
+    .brand{display:inline-flex;gap:8px;align-items:center;color:var(--muted);text-decoration:none}
+    .brand svg{width:18px;height:18px;opacity:.85}
+  #btnTheme svg{width:18px;height:18px;opacity:.85}
+    .error{padding:12px 14px;border:1px solid #ef4444;background:rgba(239,68,68,.08);color:#ef9a9a;border-radius:8px}
+    .color{display:inline-flex;gap:8px;align-items:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a class="brand" href="/" title="Trellolite">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm3 3v10h5V7H7zm9 0v6h3V7h-3z"/></svg>
+        <span>Trellolite</span>
+      </a>
+      <div class="spacer"></div>
+  <button id="btnTheme" title="" aria-label="" style="background:none;border:0;color:inherit;cursor:pointer">
+        <svg><use href="#i-auto"></use></svg>
+      </button>
+    </header>
+
+  <div id="view"></div>
+
+  <div id="footerNote" class="footer muted" data-t="app.share.footer">Публичная страница. Данные доступны только по ссылке.</div>
+  </div>
+
+  <svg style="display:none">
+    <symbol id="i-auto" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9h-9V3Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><path fill="currentColor" d="M6.76 4.84l-1.8-1.79L3.17 4.84l1.79 1.79 1.8-1.79zm10.48 0l1.79-1.79 1.79 1.79-1.79 1.79-1.79-1.79zM12 1h0v3h0V1zm0 19h0v3h0v-3zM4.84 17.24l-1.79 1.79 1.79 1.79 1.79-1.79-1.79-1.79zm14.32 0l1.79 1.79-1.79 1.79-1.79-1.79 1.79-1.79zM1 12h3v0H1v0zm19 0h3v0h-3v0zM12 6a6 6 0 100 12A6 6 0 0012 6z"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path fill="currentColor" d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></symbol>
+  </svg>
+
+  <script>
+  function tt(key, def){
+    try{
+      if(typeof t==='function'){
+        const v = t(key);
+        if(v && v !== key) return v; // use translation only if it differs from the key
+      }
+    }catch{}
+    return def;
+  }
+  function getPreferredTheme(){ try{ const s=localStorage.getItem('theme'); if(s==='light'||s==='dark'||s==='auto') return s; }catch{} return 'auto'; }
+  function setTheme(mode){ const html=document.documentElement; if(mode==='auto'){ html.removeAttribute('data-theme'); } else { html.setAttribute('data-theme', mode); } const use=document.querySelector('#btnTheme use'); if(use){ use.setAttribute('href', mode==='dark'?'#i-moon': mode==='light'?'#i-sun':'#i-auto'); }
+  }
+  (function(){ const btn=document.getElementById('btnTheme'); if(btn){ btn.addEventListener('click', ()=>{ const cur=getPreferredTheme(); const next = cur==='auto'?'light':cur==='light'?'dark':'auto'; localStorage.setItem('theme', next); setTheme(next); }); setTheme(getPreferredTheme()); btn.title = tt('app.theme.toggle','Тема'); btn.setAttribute('aria-label', btn.title); } })();
+  async function fetchJSON(url){ const res = await fetch(url); if(!res.ok){ throw new Error(await res.text()||res.statusText); } try{ return await res.json(); }catch{ return null; } }
+  function escapeHTML(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+  function renderMd(s){ return '<p>'+escapeHTML(s||'').replace(/\n/g,'<br>')+'</p>'; }
+  async function main(){
+    const token = location.pathname.split('/').pop();
+    const view = document.getElementById('view');
+    view.innerHTML = '<div class="muted">'+tt('profile.loading','Загрузка…')+'</div>';
+    try{
+      const c = await fetchJSON('/api/public/share/'+encodeURIComponent(token));
+      try{ if(window.i18n){ i18n.apply(); } }catch{}
+      try{ document.title = tt('app.share.page_title','Карточка — общий доступ'); document.getElementById('footerNote').textContent = tt('app.share.footer','Публичная страница. Данные доступны только по ссылке.'); }catch{}
+      const color = (c && c.color) ? c.color : '';
+      const due = c && c.due_at ? new Date(c.due_at).toLocaleString() : '';
+      view.innerHTML = '<article class="card"'+(color?(' style="--clr:'+color+'; border-left:6px solid '+color+'"'):'')+'>'+
+        '<h2 class="title">'+escapeHTML(c.title||'')+'</h2>'+
+        (c.description?('<div class="desc">'+renderMd(c.description)+'</div>'):'')+
+        '<div class="meta">'+
+          (due?('<span class="badge"><span class="dot" style="background:'+color+'"></span>'+escapeHTML(due)+'</span>'):'')+
+        '</div>'+
+      '</article>';
+    }catch(err){ view.innerHTML = '<div class="error">'+tt('app.share.not_found','Ссылка недоступна или удалена.')+'</div>'; }
+  }
+  main();
+  </script>
+</body>
+</html>

@@ -43,6 +43,8 @@ const api = {
   async adminAddUserToGroup(id, user_id){ return fetchJSON(`/api/admin/groups/${id}/users`, {method:'POST', body:{user_id}}); },
   async adminRemoveUserFromGroup(id, uid){ return fetchJSON(`/api/admin/groups/${id}/users/${uid}`, {method:'DELETE'}); },
   async adminListUsers(q, limit){ const p = new URLSearchParams(); if(q) p.set('q', q); if(limit) p.set('limit', String(limit)); return fetchJSON(`/api/admin/users${p.toString()?('?' + p.toString()):''}`); },
+  // Share
+  async getOrCreateShare(cardId){ return fetchJSON(`/api/cards/${cardId}/share`); },
 };
 
 async function fetchJSON(url, opts={}){
@@ -338,7 +340,7 @@ function bindUI(){
       if(!arr.some(x => x.id === c.id)){
         arr.push(c);
         const cardsEl = document.querySelector(`.cards[data-list-id="${listId}"]`);
-        if(cardsEl) cardsEl.appendChild(renderCard(c));
+        if(cardsEl) renderListCardsTree(cardsEl, listId);
       }
       els.formCard.reset(); 
       delete els.formCard.dataset.listId;
@@ -752,9 +754,10 @@ async function buildContextMenuItems(e){
     const listId = parseInt(targetCard.closest('.cards')?.dataset.listId || '0', 10);
     const c = (state.cards.get(listId) || []).find(x => x.id === id);
     return [
-  { label: (typeof t==='function'? t('app.ctx.open_edit') : 'Открыть/Редактировать'), action: () => openCard(c) },
-  { label: (typeof t==='function'? t('app.ctx.duplicate_card') : 'Дубликат карточки'), action: async () => { await duplicateCard(id, listId); } },
-  { label: (typeof t==='function'? t('app.ctx.move') : 'Переместить…'), action: async () => { await moveCardPrompt(id, listId); } },
+      { label: (typeof t==='function'? t('app.ctx.open_edit') : 'Открыть/Редактировать'), action: () => openCard(c) },
+      { label: (typeof t==='function'? t('app.ctx.duplicate_card') : 'Дубликат карточки'), action: async () => { await duplicateCard(id, listId); } },
+      { label: (typeof t==='function'? t('app.ctx.move') : 'Переместить…'), action: async () => { await moveCardPrompt(id, listId); } },
+      { label: (typeof t==='function'? t('app.ctx.share') : 'Поделиться'), action: async () => { await shareCard(c); } },
       { label: (typeof t==='function'? t('app.ctx.color') : 'Цвет…'), action: async () => {
           const color = await pickColor(c?.color || ''); if(color === undefined) return;
           try { await api.updateCardFields(id, { color: color || '' }); if(c){ c.color = color || ''; const el = document.querySelector(`.card[data-id="${id}"]`); if(el){ if(c.color) el.style.setProperty('--clr', c.color); else el.style.removeProperty('--clr'); } } }
@@ -897,9 +900,7 @@ async function duplicateCard(cardId, sourceListId, targetListId){
       destArr.push(created); state.cards.set(destListId, destArr);
     }
     const cardsEl = document.querySelector(`.cards[data-list-id="${destListId}"]`);
-    if(cardsEl && !cardsEl.querySelector(`.card[data-id='${created.id}']`)){
-      cardsEl.appendChild(renderCard(created));
-    }
+    if(cardsEl){ renderListCardsTree(cardsEl, destListId); }
   } catch(err){ alert('Не удалось дублировать карточку: ' + err.message); }
 }
 
@@ -943,7 +944,11 @@ async function moveCardPrompt(cardId, currentListId){
   const idx = await selectDialog({ title:'Переместить карточку', label:'Список назначения', options: lists.map((l,i)=>({value: String(i), label: l.title})) });
   if(idx === undefined || idx === null) return;
   const target = lists[parseInt(idx,10)]; if(!target) return;
-  try { await api.moveCard(cardId, target.id, 1<<30); renderBoard(state.currentBoardId); }
+  try {
+    // Если переносим через меню — делаем карточку корневой в целевом списке
+    await api.updateCardFields(cardId, { parent_id: 0 });
+    await api.moveCard(cardId, target.id, 1<<30); renderBoard(state.currentBoardId);
+  }
   catch(err){ alert('Не удалось переместить карточку: ' + err.message); }
 }
 
@@ -1160,13 +1165,20 @@ function onEvent(ev){
       if(!arr.some(x => x.id === c.id)){
         arr.push(c);
         const cardsEl = document.querySelector(`.cards[data-list-id="${c.list_id}"]`);
-        if(cardsEl) cardsEl.appendChild(renderCard(c));
+        if(cardsEl) renderListCardsTree(cardsEl, c.list_id);
       }
       break;
     }
     case 'card.updated':
     case 'card.assignee_changed':
-    case 'card.moved':
+    case 'card.moved': {
+      const c = ev.payload; if(c && typeof c.list_id==='number'){
+        const cardsEl = document.querySelector(`.cards[data-list-id="${c.list_id}"]`);
+        if(cardsEl) renderListCardsTree(cardsEl, c.list_id);
+        else renderBoard(state.currentBoardId);
+      } else if(!state.duplicationInProgress){ renderBoard(state.currentBoardId); }
+      break;
+    }
     case 'comment.created': {
       if(!state.duplicationInProgress){ renderBoard(state.currentBoardId); }
       break;
@@ -1192,7 +1204,7 @@ function buildListColumn(l){
         <svg aria-hidden="true"><use href="#i-trash" xlink:href="#i-trash"></use></svg>
       </button>
     </header>
-    <div class="cards" data-list-id="${l.id}"></div>
+  <div class="cards" data-list-id="${l.id}" data-parent-id="0"></div>
     <div class="add-card"><button class="btn btn-add-card">${(typeof t==='function'? t('app.ctx.add_card') : 'Добавить карточку')}</button></div>`;
 
   const titleEl = col.querySelector('h3');
@@ -1235,7 +1247,8 @@ function buildListColumn(l){
   }
 
   const cardsEl = col.querySelector('.cards');
-  for(const c of (state.cards.get(l.id)||[])){ cardsEl.appendChild(renderCard(c)); }
+  // Render nested cards tree for this list
+  renderListCardsTree(cardsEl, l.id);
   enableCardsDnD(cardsEl);
   enableListsDnD(col);
   return col;
@@ -1246,6 +1259,23 @@ function renderLists(){
   for(const l of state.lists){
     els.lists.appendChild(buildListColumn(l));
   }
+  ensureNestDnDInitialized();
+}
+
+function isCardCollapsed(id){
+  try{
+    const raw = localStorage.getItem('collapsedCards') || '{}';
+    const map = JSON.parse(raw); return !!map[id];
+  }catch{ return false; }
+}
+
+function setCardCollapsed(id, val){
+  try{
+    const raw = localStorage.getItem('collapsedCards') || '{}';
+    const map = JSON.parse(raw);
+    if(val) map[id] = true; else delete map[id];
+    localStorage.setItem('collapsedCards', JSON.stringify(map));
+  }catch{}
 }
 
 function renderCard(c){
@@ -1255,10 +1285,13 @@ function renderCard(c){
   let assigneeHTML = '';
   if(c.assignee_id && state.currentBoardId && state.boardMembers.has(state.currentBoardId)){
     const u = (state.boardMembers.get(state.currentBoardId)||[]).find(x => x.id === c.assignee_id);
-  if(u){ const initials = (u.name||u.email||'?').trim().slice(0,1).toUpperCase(); const title = (typeof t==='function' ? t('app.dialogs.card.assignee_title', {name: (u.name||u.email)}) : ('Исполнитель: '+(u.name||u.email))); assigneeHTML = `<span class="assignee" title="${escapeHTML(title)}">${escapeHTML(initials)}</span>`; }
+    if(u){ const initials = (u.name||u.email||'?').trim().slice(0,1).toUpperCase(); const title = (typeof t==='function' ? t('app.dialogs.card.assignee_title', {name: (u.name||u.email)}) : ('Исполнитель: '+(u.name||u.email))); assigneeHTML = `<span class="assignee" title="${escapeHTML(title)}">${escapeHTML(initials)}</span>`; }
   }
   const cardColorLbl = (typeof t==='function'? t('app.ctx.color') : 'Цвет…');
-  el.innerHTML = `<span class="ico"><svg aria-hidden="true"><use href="#i-card"></use></svg></span><div class="title">${escapeHTML(c.title)}</div><div class="spacer"></div>${assigneeHTML}<button class="btn icon btn-color" title="${cardColorLbl}" aria-label="${cardColorLbl}"><svg aria-hidden="true"><use href="#i-palette"></use></svg></button>`;
+  const shareLbl = (typeof t==='function'? t('app.ctx.share') : 'Поделиться');
+  const collapsed = isCardCollapsed(c.id);
+  const toggleTitle = (typeof t==='function'? t('app.card.toggle_children') : 'Скрыть/показать вложенные');
+  el.innerHTML = `<button class="btn icon btn-collapse" title="${toggleTitle}" aria-label="${toggleTitle}" aria-expanded="${collapsed?'false':'true'}">${collapsed?'▸':'▾'}</button><span class="ico"><svg aria-hidden="true"><use href="#i-card"></use></svg></span><div class="title">${escapeHTML(c.title)}</div><div class="spacer"></div>${assigneeHTML}<button class="btn icon btn-share" title="${shareLbl}" aria-label="${shareLbl}"><svg aria-hidden="true"><use href="#i-link"></use></svg></button><button class="btn icon btn-color" title="${cardColorLbl}" aria-label="${cardColorLbl}"><svg aria-hidden="true"><use href="#i-palette"></use></svg></button><div class="children" data-parent-id="${c.id}"></div>`;
   el.addEventListener('dblclick', () => openCard(c));
   if(c.color){ el.style.setProperty('--clr', c.color); }
   const colorBtn = el.querySelector('.btn-color');
@@ -1269,6 +1302,24 @@ function renderCard(c){
       if(color === undefined) return;
       try { await api.updateCardFields(c.id, { color: color || '' }); c.color = color || ''; if(c.color) el.style.setProperty('--clr', c.color); else el.style.removeProperty('--clr'); }
       catch(err){ alert('Не удалось сохранить цвет карточки: ' + err.message); }
+    });
+  }
+  const shareBtn = el.querySelector('.btn-share');
+  if(shareBtn){ shareBtn.addEventListener('click', (ev) => { ev.stopPropagation(); shareCard(c); }); }
+  // Collapse/expand children
+  const childrenEl = el.querySelector('.children');
+  const toggleBtn = el.querySelector('.btn-collapse');
+  if(childrenEl && toggleBtn){
+    const applyCollapsed = (on) => {
+      toggleBtn.setAttribute('aria-expanded', on?'false':'true');
+      toggleBtn.textContent = on ? '▸' : '▾';
+      childrenEl.style.display = on ? 'none' : '';
+    };
+    applyCollapsed(collapsed);
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const cur = isCardCollapsed(c.id);
+      setCardCollapsed(c.id, !cur); applyCollapsed(!cur);
     });
   }
   return el;
@@ -1537,7 +1588,8 @@ function enableCardsDnD(container){
   container.addEventListener('dragstart', e => {
     const card = e.target.closest('.card'); if(!card) return; card.classList.add('dragging');
     const cardId = card.dataset.id;
-    const listId = container.dataset.listId;
+    // Determine listId from nearest container with data-list-id
+    const listId = (container.closest('[data-list-id]')?.dataset.listId) || container.dataset.listId;
     if(e.dataTransfer){
   // Добавляем префикс, чтобы однозначно отличать тип при fallback без custom MIME
   e.dataTransfer.setData('text/plain', `trellolite:card:${cardId}`);
@@ -1562,7 +1614,8 @@ function enableCardsDnD(container){
   });
   container.addEventListener('drop', async e => {
     e.preventDefault();
-    const listId = parseInt(container.dataset.listId, 10);
+    const listId = parseInt((container.closest('[data-list-id]')?.dataset.listId) || container.dataset.listId, 10);
+    const parentId = parseInt(container.dataset.parentId || '0', 10) || 0;
     // Попытка внутреннего dnd
     const dragging = document.querySelector('.card.dragging');
     if(dragging){
@@ -1570,10 +1623,20 @@ function enableCardsDnD(container){
       const cardId = parseInt(dragging.dataset.id, 10);
       const newIndex = (() => {
         const after = getDragAfterElement(container, e.clientY);
-        const cards = [...container.querySelectorAll('.card')].filter(x=>x!==dragging);
+        const cards = [...container.children].filter(x=>x!==dragging && x.classList && x.classList.contains('card'));
         return (after ? cards.indexOf(after) : cards.length);
       })();
-      try { await api.moveCard(cardId, listId, newIndex); } catch(err){ alert((typeof t==='function'? t('app.errors.cant_move',{msg: err.message}) : ('Не удалось переместить: '+err.message))); }
+      try {
+        // Update parent first, then reorder within list
+  // Optimistic local update to avoid flicker / disappearance
+  const srcListId = applyLocalCardMove(cardId, listId, parentId) || listId;
+  // Re-render both source and destination containers
+  const destEl = document.querySelector(`.cards[data-list-id="${listId}"]`);
+  if(destEl) renderListCardsTree(destEl, listId);
+  if(srcListId !== listId){ const srcEl = document.querySelector(`.cards[data-list-id="${srcListId}"]`); if(srcEl) renderListCardsTree(srcEl, srcListId); }
+  await api.updateCardFields(cardId, { parent_id: parentId || 0 });
+  await api.moveCard(cardId, listId, newIndex);
+      } catch(err){ alert((typeof t==='function'? t('app.errors.cant_move',{msg: err.message}) : ('Не удалось переместить: '+err.message))); }
       return;
     }
     // Внешний dnd из другого окна
@@ -1594,16 +1657,24 @@ function enableCardsDnD(container){
     if(payload && payload.kind === 'card'){
       const newIndex = (() => {
         const after = getDragAfterElement(container, e.clientY);
-        const cards = [...container.querySelectorAll('.card')];
+        const cards = [...container.children].filter(x=>x.classList && x.classList.contains('card'));
         return (after ? cards.indexOf(after) : cards.length);
       })();
-      try { await api.moveCard(Number(payload.id), listId, newIndex); } catch(err){ alert((typeof t==='function'? t('app.errors.cant_move',{msg: err.message}) : ('Не удалось переместить: '+err.message))); }
+      try {
+  const cid = Number(payload.id);
+  const srcListId = applyLocalCardMove(cid, listId, parentId) || listId;
+  const destEl = document.querySelector(`.cards[data-list-id="${listId}"]`);
+  if(destEl) renderListCardsTree(destEl, listId);
+  if(srcListId !== listId){ const srcEl = document.querySelector(`.cards[data-list-id="${srcListId}"]`); if(srcEl) renderListCardsTree(srcEl, srcListId); }
+  await api.updateCardFields(cid, { parent_id: parentId || 0 });
+  await api.moveCard(cid, listId, newIndex);
+      } catch(err){ alert((typeof t==='function'? t('app.errors.cant_move',{msg: err.message}) : ('Не удалось переместить: '+err.message))); }
     }
   });
 }
 
 function getDragAfterElement(container, y){
-  const els = [...container.querySelectorAll('.card:not(.dragging)')];
+  const els = [...container.children].filter(x => x.classList && x.classList.contains('card') && !x.classList.contains('dragging'));
   let closest = {offset: Number.NEGATIVE_INFINITY, el: null};
   for(const el of els){
     const box = el.getBoundingClientRect();
@@ -1650,7 +1721,7 @@ function enableListsDnD(listColumn){
     const siblings = [...document.querySelectorAll('.lists .list')];
     const newIndex = siblings.findIndex(x => x.dataset.id == listColumn.dataset.id);
     const id = parseInt(listColumn.dataset.id, 10);
-    try { await api.moveList(id, newIndex, state.currentBoardId); } catch(err){ console.warn('Не удалось переместить список:', err.message); }
+    try { await api.moveList(id, newIndex); } catch(err){ console.warn('Не удалось переместить список:', err.message); }
     listColumn.draggable = false;
   });
   const container = document.querySelector('.lists');
@@ -1801,3 +1872,175 @@ function getDragAfterBoard(container, y){
   return closest.el;
 }
 function escapeHTML(s){ return s.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+
+// --- Nesting DnD: allow dropping onto a card (middle zone) to make it a parent ---
+function ensureNestDnDInitialized(){
+  const root = els.lists; if(!root || root.dataset.nestDnd) return;
+  root.dataset.nestDnd = '1';
+  let hoverCard = null;
+  const clearHover = () => { if(hoverCard){ hoverCard.classList.remove('nest-target'); hoverCard = null; } };
+  root.addEventListener('dragover', (e) => {
+    // capture phase to override container reordering when aiming to nest
+  }, true);
+  root.addEventListener('dragover', (e) => {
+    const dragging = document.querySelector('.card.dragging');
+    const card = e.target && e.target.closest && e.target.closest('.card');
+    if(!card || (dragging && card === dragging)){ clearHover(); return; }
+    // Determine middle third
+    const r = card.getBoundingClientRect();
+    const top = r.top, bottom = r.bottom; const h = r.height;
+    const y = e.clientY;
+    const zoneTop = top + h/3, zoneBottom = bottom - h/3;
+    const types = (e.dataTransfer && e.dataTransfer.types) || [];
+    const isOur = (types && (types.includes(DND_MIME) || types.includes('text/plain')));
+    if(y >= zoneTop && y <= zoneBottom && isOur){
+      // middle zone -> nest as child
+      e.preventDefault(); e.stopPropagation();
+      if(hoverCard !== card){ if(hoverCard) hoverCard.classList.remove('nest-target'); hoverCard = card; hoverCard.classList.add('nest-target'); }
+      if(e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    } else { clearHover(); }
+  }, true);
+  root.addEventListener('dragleave', (e) => {
+    const cur = e.target && e.target.closest && e.target.closest('.card');
+    if(cur && hoverCard && cur === hoverCard){ clearHover(); }
+  }, true);
+  root.addEventListener('drop', async (e) => {
+    if(!hoverCard) return;
+    e.preventDefault(); e.stopPropagation();
+    const targetCardId = parseInt(hoverCard.dataset.id, 10) || 0;
+    if(!targetCardId){ clearHover(); return; }
+    // Figure out source card id (in-window or external)
+    let sourceCardId = 0; let fromExternal = false;
+    const dragging = document.querySelector('.card.dragging');
+    if(dragging){ sourceCardId = parseInt(dragging.dataset.id, 10) || 0; }
+    if(!sourceCardId && e.dataTransfer){
+      fromExternal = true;
+      try{
+        const raw = e.dataTransfer.getData(DND_MIME) || '';
+        if(raw){ const p = JSON.parse(raw); if(p && p.kind==='card' && p.id) sourceCardId = Number(p.id); }
+        if(!sourceCardId){
+          const tp = e.dataTransfer.getData('text/plain') || '';
+          const m = /^trellolite:card:(\d+)$/.exec(tp); if(m) sourceCardId = Number(m[1]);
+        }
+      }catch{}
+    }
+    if(!sourceCardId || sourceCardId === targetCardId){ clearHover(); return; }
+    // Determine target listId from closest list
+    const listEl = hoverCard.closest('section.list');
+    const listId = listEl ? parseInt(listEl.dataset.id, 10) : 0;
+    if(!listId){ clearHover(); return; }
+    // new index = at end of target's children
+    const childrenEl = hoverCard.querySelector('.children');
+  const newIndex = childrenEl ? [...childrenEl.children].filter(x => x.classList && x.classList.contains('card')).length : 1<<30;
+    try{
+      await api.updateCardFields(sourceCardId, { parent_id: targetCardId });
+      await api.moveCard(sourceCardId, listId, newIndex);
+    }catch(err){ alert((typeof t==='function'? t('app.errors.cant_move',{msg: err.message}) : ('Не удалось переместить: '+err.message))); }
+    // refresh target list tree for responsiveness
+    const cardsEl = document.querySelector(`.cards[data-list-id="${listId}"]`);
+  if(cardsEl){ renderListCardsTree(cardsEl, listId); }
+  // Auto-expand target card to show newly nested child
+  const toggleBtn = hoverCard.querySelector('.btn-collapse');
+  const ch = hoverCard.querySelector('.children');
+  if(toggleBtn && ch){ toggleBtn.setAttribute('aria-expanded','true'); toggleBtn.textContent='▾'; ch.style.display=''; setCardCollapsed(targetCardId, false); }
+    clearHover();
+  }, true);
+}
+
+// Helpers to update local state after DnD so re-render uses fresh parent/list
+function findCardInState(cardId){
+  for(const [lid, arr] of state.cards.entries()){
+    const idx = (arr||[]).findIndex(x => x.id === cardId);
+    if(idx >= 0){ return { listId: lid, index: idx, arr, card: arr[idx] }; }
+  }
+  return null;
+}
+
+function applyLocalCardMove(cardId, destListId, parentId){
+  const loc = findCardInState(cardId); if(!loc) return null;
+  const srcListId = loc.listId;
+  const c = loc.card;
+  if(srcListId !== destListId){
+    // remove from source
+    loc.arr.splice(loc.index, 1);
+    // add to destination
+    let destArr = state.cards.get(destListId);
+    if(!destArr){ destArr = []; state.cards.set(destListId, destArr); }
+    if(!destArr.some(x => x.id === c.id)) destArr.push(c);
+  }
+  c.parent_id = parentId || 0;
+  c.list_id = destListId;
+  return srcListId;
+}
+
+// Build and render hierarchical cards tree for a list into the provided container (.cards)
+function renderListCardsTree(container, listId){
+  if(!container || !listId) return;
+  const items = (state.cards.get(listId) || []).slice();
+  // Build children map by parent_id keeping original order
+  const byParent = new Map();
+  for(const c of items){
+    const pid = Number(c.parent_id||0);
+    if(!byParent.has(pid)) byParent.set(pid, []);
+    byParent.get(pid).push(c);
+  }
+  // Clear container and (re)attach DnD
+  container.innerHTML = '';
+  const appendChildren = (parentId, parentEl) => {
+    const kids = byParent.get(Number(parentId)||0) || [];
+    for(const ch of kids){
+      const node = renderCard(ch);
+      parentEl.appendChild(node);
+      const chWrap = node.querySelector('.children');
+      if(chWrap){ enableCardsDnD(chWrap); appendChildren(ch.id, chWrap); }
+    }
+  };
+  appendChildren(0, container);
+  // Ensure DnD enabled for the root container too
+  enableCardsDnD(container);
+}
+
+// Create/get a share link for a card and copy it to clipboard with feedback
+async function shareCard(card){
+  if(!card || !card.id){ return; }
+  try{
+    const res = await api.getOrCreateShare(card.id);
+    const url = res && (res.url || (location.origin + '/share/' + (res.token||'')));
+    if(!url){ throw new Error('no url'); }
+    await copyToClipboard(url);
+    // lightweight toast
+    const msg = (typeof t==='function'? t('app.share.link_copied') : 'Ссылка скопирована');
+    showToast(msg);
+  }catch(err){
+    const fallback = (typeof t==='function'? t('app.share.copy_failed',{msg: err.message}) : ('Не удалось скопировать ссылку: '+err.message));
+    alert(fallback);
+  }
+}
+
+// Clipboard helper with fallback
+async function copyToClipboard(text){
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(String(text));
+      return;
+    }
+  }catch{}
+  // Fallback via hidden textarea
+  const ta = document.createElement('textarea');
+  ta.value = String(text);
+  ta.style.position='fixed'; ta.style.opacity='0'; ta.style.left='-9999px'; ta.setAttribute('readonly','readonly');
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); } finally { document.body.removeChild(ta); }
+}
+
+function showToast(message){
+  const div = document.createElement('div');
+  div.className = 'toast';
+  div.textContent = message;
+  // minimal styling inline to avoid CSS changes
+  div.style.position='fixed'; div.style.bottom='16px'; div.style.left='50%'; div.style.transform='translateX(-50%)';
+  div.style.background='rgba(0,0,0,0.8)'; div.style.color='#fff'; div.style.padding='8px 12px'; div.style.borderRadius='8px';
+  div.style.fontSize='13px'; div.style.zIndex='10000'; div.style.pointerEvents='none';
+  document.body.appendChild(div);
+  setTimeout(()=>{ div.style.transition='opacity .3s ease'; div.style.opacity='0'; setTimeout(()=>div.remove(), 350); }, 900);
+}
